@@ -3,9 +3,12 @@
  * Handles automatic voice call initiation when new bookings arrive
  */
 
-const BOLNA_API_URL = 'https://api.bolna.ai/call';
+const BOLNA_BASE_URL = import.meta.env.VITE_BOLNA_BASE_URL;
+const BOLNA_CALLS_PATH = import.meta.env.VITE_BOLNA_CALLS_PATH;
+const BOLNA_API_URL = `${BOLNA_BASE_URL}${BOLNA_CALLS_PATH}`;
 const BOLNA_API_KEY = import.meta.env.VITE_BOLNA_API_KEY;
 const BOLNA_AGENT_ID = import.meta.env.VITE_BOLNA_AGENT_ID;
+const BOLNA_FROM_NUMBER = import.meta.env.VITE_BOLNA_FROM_NUMBER;
 
 /**
  * Format phone number to E.164 format
@@ -64,6 +67,8 @@ export const makeBolnaCall = async (phoneNumber, bookingData = {}) => {
     }
 
     console.log('📞 [Bolna] Initiating call to:', formattedPhone);
+    console.log('📞 [Bolna] From number:', BOLNA_FROM_NUMBER);
+    console.log('🔗 [Bolna] API URL:', BOLNA_API_URL);
     console.log('📋 [Bolna] Booking data:', {
       booking_id: bookingData.booking_id,
       address: bookingData.address,
@@ -74,6 +79,7 @@ export const makeBolnaCall = async (phoneNumber, bookingData = {}) => {
     const payload = {
       agent_id: BOLNA_AGENT_ID,
       recipient_phone_number: formattedPhone,
+      from_phone_number: BOLNA_FROM_NUMBER,
       user_data: {
         booking_id: bookingData.booking_id || 'N/A',
         address: bookingData.address || 'N/A',
