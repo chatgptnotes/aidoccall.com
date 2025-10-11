@@ -22,7 +22,7 @@ const Login = () => {
     try {
       if (isRegisterMode) {
         // Registration
-        await signUp(email, password, { full_name: fullName });
+        await signUp(email, password, { name: fullName });
         setSuccess('Account created successfully! You can now login.');
         setIsRegisterMode(false);
         setEmail('');
