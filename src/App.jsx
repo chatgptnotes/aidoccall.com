@@ -3,6 +3,8 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import EmergencyLocation from './pages/EmergencyLocation';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import Driver from './pages/Driver';
+import CreateDriver from './pages/CreateDriver';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
@@ -16,6 +18,22 @@ const App = () => {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/driver"
+          element={
+            <ProtectedRoute>
+              <Driver />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/driver/create"
+          element={
+            <ProtectedRoute>
+              <CreateDriver />
             </ProtectedRoute>
           }
         />

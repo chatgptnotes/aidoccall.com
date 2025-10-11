@@ -1,22 +1,27 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Login = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { signIn } = useAuth();
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    setLoading(true);
 
-    // Mock authentication
-    if (email === 'admin@gmail.com' && password === 'bhupendra') {
-      localStorage.setItem('isAuthenticated', 'true');
+    try {
+      await signIn(email, password);
       navigate('/dashboard');
-    } else {
-      setError('Invalid credentials. Please try again.');
+    } catch (error) {
+      setError(error.message || 'Invalid credentials. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -66,9 +71,10 @@ const Login = () => {
 
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 font-semibold"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition duration-200 font-semibold disabled:bg-blue-400 disabled:cursor-not-allowed"
           >
-            Login
+            {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
 
