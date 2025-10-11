@@ -7,7 +7,7 @@ const Sidebar = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠', path: '/dashboard', badge: '13' },
+    { id: 'dashboard', label: 'Dashboard', icon: '🏠', path: '/dashboard/bookings', badge: '13' },
     { id: 'driver', label: 'Driver', icon: '🚗', path: '/dashboard/driver' },
     { id: 'hospital', label: 'Hospital', icon: '🏥', path: '/dashboard/hospital' },
     { id: 'users', label: 'Manage Users', icon: '👥', path: '/dashboard/users' },

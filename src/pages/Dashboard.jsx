@@ -172,7 +172,21 @@ const Dashboard = () => {
           </div>
 
           {/* Additional Stats */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div
+              onClick={() => navigate('/dashboard/bookings')}
+              className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-2xl shadow-md p-6 cursor-pointer hover:shadow-xl transition transform hover:scale-105"
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-xl font-bold text-white">All Bookings</h3>
+                <span className="text-4xl">📋</span>
+              </div>
+              <p className="text-sm text-blue-100 mb-2">View and manage all bookings</p>
+              <button className="bg-white text-blue-600 px-4 py-2 rounded-lg font-semibold hover:bg-blue-50 transition mt-2">
+                View Details →
+              </button>
+            </div>
+
             <div className="bg-white rounded-2xl shadow-md p-6">
               <h3 className="text-xl font-bold text-gray-800 mb-4">Website Visitors</h3>
               <p className="text-4xl font-bold text-gray-800">750K</p>
