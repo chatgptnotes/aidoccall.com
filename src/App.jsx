@@ -6,6 +6,7 @@ import Dashboard from './pages/Dashboard';
 import Driver from './pages/Driver';
 import CreateDriver from './pages/CreateDriver';
 import EditDriver from './pages/EditDriver';
+import Bookings from './pages/Bookings';
 import ProtectedRoute from './components/ProtectedRoute';
 
 const App = () => {
@@ -43,6 +44,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <EditDriver />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/bookings"
+          element={
+            <ProtectedRoute>
+              <Bookings />
             </ProtectedRoute>
           }
         />
