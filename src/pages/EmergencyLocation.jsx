@@ -812,9 +812,14 @@ const EmergencyLocation = () => {
                     <svg className="w-6 h-6 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    <p className="text-green-700 font-semibold">
-                      Emergency request submitted successfully! We'll contact you shortly.
-                    </p>
+                    <div>
+                      <p className="text-green-700 font-semibold">
+                        Emergency request submitted successfully! We'll contact you shortly.
+                      </p>
+                      <p className="text-green-600 text-sm mt-1">
+                        To submit another request, please refresh the page.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -834,9 +839,9 @@ const EmergencyLocation = () => {
               {/* Submit Button */}
               <button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || submitSuccess}
                 className={`w-full bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-bold py-3 sm:py-4 md:py-5 rounded-xl text-base sm:text-lg transition transform hover:scale-105 flex items-center justify-center gap-3 ${
-                  isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
+                  isSubmitting || submitSuccess ? 'opacity-70 cursor-not-allowed' : ''
                 }`}
               >
                 {isSubmitting ? (
