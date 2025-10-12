@@ -3,8 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import logo from '../assets/raftaar_seva_logo.png';
+import { autoAssignDriver } from '../services/driverAssignment';
 
 const libraries = ['places'];
 
@@ -469,6 +470,20 @@ const EmergencyLocation = () => {
       // Success! Show success message
       setSubmitSuccess(true);
       console.log('Booking created successfully:', data);
+
+      // Auto-assign nearest available driver
+      if (data && data[0]) {
+        console.log('🚗 [Booking] Attempting to auto-assign driver...');
+        const assignmentResult = await autoAssignDriver(data[0]);
+
+        if (assignmentResult.success) {
+          console.log('✅ [Booking] Driver auto-assigned successfully!');
+          console.log(`   Driver: ${assignmentResult.driver.first_name} ${assignmentResult.driver.last_name}`);
+          console.log(`   Distance: ${assignmentResult.distance.toFixed(2)} km`);
+        } else {
+          console.warn('⚠️ [Booking] Could not auto-assign driver:', assignmentResult.message);
+        }
+      }
 
       // Reset form after 2 seconds
       setTimeout(() => {

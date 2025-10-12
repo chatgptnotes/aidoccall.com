@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Sidebar from '../components/Sidebar';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../lib/supabaseClient';
 import { makeBolnaCall } from '../services/bolnaService';
+import { autoAssignDriver, findNearestDrivers, assignDriverToBooking } from '../services/driverAssignment';
+import { makeDriverCall } from '../services/bolnaService';
+import DriverCallStatus from '../components/DriverCallStatus';
 
 const Bookings = () => {
   const navigate = useNavigate();
@@ -13,6 +16,12 @@ const Bookings = () => {
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [isAssigning, setIsAssigning] = useState(false);
+  const [assignmentResults, setAssignmentResults] = useState(null);
+  const [showDriverModal, setShowDriverModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState(null);
+  const [nearestDrivers, setNearestDrivers] = useState([]);
+  const [loadingDrivers, setLoadingDrivers] = useState(false);
 
   useEffect(() => {
     fetchBookings();
@@ -110,7 +119,17 @@ const Bookings = () => {
       setLoading(true);
       let query = supabase
         .from('bookings')
-        .select('*')
+        .select(`
+          *,
+          drivers:driver_id (
+            id,
+            first_name,
+            last_name,
+            phone,
+            vehicle_model,
+            vehicle_number
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (filterStatus !== 'all') {
@@ -139,6 +158,142 @@ const Bookings = () => {
     }
   };
 
+  const handleBulkAutoAssign = async () => {
+    try {
+      setIsAssigning(true);
+      setAssignmentResults(null);
+
+      console.log('🚗🚗🚗 [Bulk Assignment] Starting bulk auto-assignment...');
+
+      // Get all pending bookings without drivers
+      const pendingBookings = bookings.filter(
+        b => b.status === 'pending' && !b.driver_id
+      );
+
+      console.log(`📊 [Bulk Assignment] Found ${pendingBookings.length} pending bookings without drivers`);
+
+      if (pendingBookings.length === 0) {
+        setAssignmentResults({
+          success: true,
+          message: 'No pending bookings to assign',
+          assigned: 0,
+          failed: 0
+        });
+        return;
+      }
+
+      let assigned = 0;
+      let failed = 0;
+      const failedBookings = [];
+
+      // Assign drivers to each booking
+      for (const booking of pendingBookings) {
+        console.log(`\n🔄 [Bulk Assignment] Processing booking: ${booking.booking_id}`);
+
+        const result = await autoAssignDriver(booking);
+
+        if (result.success) {
+          assigned++;
+          console.log(`✅ [Bulk Assignment] Assigned driver to ${booking.booking_id}`);
+        } else {
+          failed++;
+          failedBookings.push({ id: booking.booking_id, reason: result.message });
+          console.log(`❌ [Bulk Assignment] Failed to assign driver to ${booking.booking_id}: ${result.message}`);
+        }
+      }
+
+      // Show results
+      setAssignmentResults({
+        success: true,
+        message: `Assigned ${assigned} drivers successfully, ${failed} failed`,
+        assigned,
+        failed,
+        failedBookings
+      });
+
+      console.log(`\n✅ [Bulk Assignment] Complete! Assigned: ${assigned}, Failed: ${failed}`);
+
+      // Refresh bookings to show updated data
+      await fetchBookings();
+    } catch (error) {
+      console.error('❌ [Bulk Assignment] Error:', error);
+      setAssignmentResults({
+        success: false,
+        message: 'Error during bulk assignment: ' + error.message
+      });
+    } finally {
+      setIsAssigning(false);
+    }
+  };
+
+  const handleSelectDriver = async (booking) => {
+    try {
+      setLoadingDrivers(true);
+      setSelectedBooking(booking);
+      setShowDriverModal(true);
+
+      // Extract location from booking remarks
+      let bookingLat, bookingLng;
+      if (booking.remarks && booking.remarks.includes('Location:')) {
+        const locationMatch = booking.remarks.match(/Location: ([-\d.]+), ([-\d.]+)/);
+        if (locationMatch) {
+          bookingLat = parseFloat(locationMatch[1]);
+          bookingLng = parseFloat(locationMatch[2]);
+        }
+      }
+
+      if (!bookingLat || !bookingLng) {
+        console.warn('⚠️ No location data in booking');
+        setNearestDrivers([]);
+        setLoadingDrivers(false);
+        return;
+      }
+
+      // Find nearest 3 drivers
+      const drivers = await findNearestDrivers(bookingLat, bookingLng, 3);
+      setNearestDrivers(drivers);
+      setLoadingDrivers(false);
+    } catch (error) {
+      console.error('Error finding drivers:', error);
+      setLoadingDrivers(false);
+    }
+  };
+
+  const handleAssignDriver = async (driver) => {
+    try {
+      console.log('📝 [Manual Assignment] Assigning driver:', driver.first_name, driver.last_name);
+
+      // Assign driver to booking
+      await assignDriverToBooking(selectedBooking.id, driver.id, driver.distance);
+
+      // Call driver
+      const callResult = await makeDriverCall(
+        driver.phone,
+        driver,
+        {
+          booking_id: selectedBooking.booking_id,
+          address: selectedBooking.address,
+          city: selectedBooking.city,
+          nearest_hospital: selectedBooking.nearest_hospital,
+          distance: `${driver.distance.toFixed(2)} km`,
+          phone_number: selectedBooking.phone_number
+        }
+      );
+
+      if (callResult.success) {
+        console.log('✅ Driver call initiated');
+      }
+
+      // Close modal and refresh
+      setShowDriverModal(false);
+      setSelectedBooking(null);
+      setNearestDrivers([]);
+      await fetchBookings();
+    } catch (error) {
+      console.error('Error assigning driver:', error);
+    }
+  };
+
   const formatDateTime = (timestamp) => {
     if (!timestamp) return 'N/A';
     const date = new Date(timestamp);
@@ -159,10 +314,12 @@ const Bookings = () => {
         return 'bg-green-100 text-green-700';
       case 'pending':
         return 'bg-yellow-100 text-yellow-700';
+      case 'assigned':
+        return 'bg-blue-100 text-blue-700';
       case 'cancelled':
         return 'bg-red-100 text-red-700';
       case 'in_progress':
-        return 'bg-blue-100 text-blue-700';
+        return 'bg-purple-100 text-purple-700';
       default:
         return 'bg-gray-100 text-gray-700';
     }
@@ -311,6 +468,28 @@ const Bookings = () => {
               </div>
 
               <div className="flex gap-2 w-full md:w-auto">
+                <button
+                  onClick={handleBulkAutoAssign}
+                  disabled={isAssigning}
+                  className={`bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white px-6 py-2 rounded-lg transition font-semibold flex items-center gap-2 ${
+                    isAssigning ? 'opacity-70 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {isAssigning ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Assigning...
+                    </>
+                  ) : (
+                    <>
+                      <span>🚗</span>
+                      Auto-Assign All
+                    </>
+                  )}
+                </button>
                 <input
                   type="text"
                   placeholder="Search bookings..."
@@ -326,6 +505,62 @@ const Bookings = () => {
                 </button>
               </div>
             </div>
+
+            {/* Assignment Results Notification */}
+            {assignmentResults && (
+              <div className={`mt-4 p-4 rounded-lg border-l-4 ${
+                assignmentResults.success && assignmentResults.assigned > 0
+                  ? 'bg-green-50 border-green-500'
+                  : assignmentResults.failed > 0
+                  ? 'bg-yellow-50 border-yellow-500'
+                  : 'bg-blue-50 border-blue-500'
+              }`}>
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-3">
+                    {assignmentResults.success && assignmentResults.assigned > 0 ? (
+                      <svg className="w-6 h-6 text-green-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6 text-blue-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    )}
+                    <div>
+                      <p className={`font-semibold ${
+                        assignmentResults.success && assignmentResults.assigned > 0
+                          ? 'text-green-700'
+                          : assignmentResults.failed > 0
+                          ? 'text-yellow-700'
+                          : 'text-blue-700'
+                      }`}>
+                        {assignmentResults.message}
+                      </p>
+                      {assignmentResults.failedBookings && assignmentResults.failedBookings.length > 0 && (
+                        <details className="mt-2">
+                          <summary className="cursor-pointer text-sm text-gray-600 hover:text-gray-800">
+                            View failed bookings ({assignmentResults.failedBookings.length})
+                          </summary>
+                          <ul className="mt-2 space-y-1 text-sm text-gray-600">
+                            {assignmentResults.failedBookings.map((fb, idx) => (
+                              <li key={idx}>• {fb.id}: {fb.reason}</li>
+                            ))}
+                          </ul>
+                        </details>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setAssignmentResults(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Bookings Table */}
@@ -373,18 +608,29 @@ const Bookings = () => {
                   </thead>
                   <tbody>
                     {filteredBookings.map((booking, index) => (
-                      <tr
-                        key={booking.id}
-                        className={`border-b border-gray-100 hover:bg-gray-50 transition ${
-                          index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                        }`}
-                      >
-                        <td className="px-6 py-4">
-                          <span className="text-blue-600 font-semibold">{booking.booking_id || 'N/A'}</span>
-                        </td>
-                        <td className="px-6 py-4 text-gray-700 text-sm">
-                          {booking.driver_id || 'Not Assigned'}
-                        </td>
+                      <React.Fragment key={booking.id}>
+                        <tr
+                          className={`border-b border-gray-100 hover:bg-gray-50 transition ${
+                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                          }`}
+                        >
+                          <td className="px-6 py-4">
+                            <span className="text-blue-600 font-semibold">{booking.booking_id || 'N/A'}</span>
+                          </td>
+                          <td className="px-6 py-4 text-gray-700 text-sm">
+                            {booking.drivers ? (
+                              <div>
+                                <div className="font-semibold text-gray-800">
+                                  {booking.drivers.first_name} {booking.drivers.last_name}
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  {booking.drivers.vehicle_model} ({booking.drivers.vehicle_number})
+                                </div>
+                              </div>
+                            ) : (
+                              <span className="text-yellow-600 font-medium">Not Assigned</span>
+                            )}
+                          </td>
                         <td className="px-6 py-4 text-gray-700 text-sm max-w-xs truncate">
                           {booking.address ? `${booking.address}${booking.city ? ', ' + booking.city : ''}` : 'N/A'}
                         </td>
@@ -413,11 +659,32 @@ const Bookings = () => {
                           {booking.booking_source || 'N/A'}
                         </td>
                         <td className="px-6 py-4">
-                          <button className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-blue-700 transition">
-                            View
-                          </button>
+                          {!booking.driver_id ? (
+                            <button
+                              onClick={() => handleSelectDriver(booking)}
+                              className="bg-green-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-green-700 transition"
+                            >
+                              Select Driver
+                            </button>
+                          ) : (
+                            <button className="bg-blue-600 text-white px-4 py-1.5 rounded-md text-sm hover:bg-blue-700 transition">
+                              View
+                            </button>
+                          )}
                         </td>
                       </tr>
+                      {/* Show call status row if booking has pending calls */}
+                      {!booking.driver_id && booking.status === 'pending' && (
+                        <tr className="bg-yellow-50 border-b border-yellow-200">
+                          <td colSpan="11" className="px-6 py-3">
+                            <DriverCallStatus
+                              bookingId={booking.id}
+                              onStatusChange={() => fetchBookings()}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                     ))}
                   </tbody>
                 </table>
@@ -426,6 +693,125 @@ const Bookings = () => {
           </div>
         </main>
       </div>
+
+      {/* Driver Selection Modal */}
+      {showDriverModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-4 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold">Select Driver</h3>
+                  <p className="text-sm text-blue-100 mt-1">
+                    Booking: {selectedBooking?.booking_id}
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowDriverModal(false);
+                    setSelectedBooking(null);
+                    setNearestDrivers([]);
+                  }}
+                  className="text-white hover:bg-white/20 rounded-full p-2 transition"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6">
+              {/* Booking Details */}
+              <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                <h4 className="font-semibold text-gray-800 mb-2">Patient Details</h4>
+                <div className="grid grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-600">Address:</span>
+                    <p className="font-medium">{selectedBooking?.address}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Hospital:</span>
+                    <p className="font-medium">{selectedBooking?.nearest_hospital || 'N/A'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Driver List */}
+              <div>
+                <h4 className="font-semibold text-gray-800 mb-4">Nearest Available Drivers</h4>
+
+                {loadingDrivers ? (
+                  <div className="text-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Finding nearest drivers...</p>
+                  </div>
+                ) : nearestDrivers.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-gray-600 text-lg">No available drivers found</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {nearestDrivers.map((driver, index) => (
+                      <div
+                        key={driver.id}
+                        className="border-2 border-gray-200 rounded-lg p-4 hover:border-blue-500 transition"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">
+                                #{index + 1}
+                              </span>
+                              <h5 className="font-bold text-lg text-gray-800">
+                                {driver.first_name} {driver.last_name}
+                              </h5>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div>
+                                <span className="text-gray-600">Distance:</span>
+                                <p className="font-semibold text-green-600">
+                                  {driver.distance.toFixed(2)} km
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Vehicle:</span>
+                                <p className="font-medium">
+                                  {driver.vehicle_model} ({driver.vehicle_number})
+                                </p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Phone:</span>
+                                <p className="font-medium">{driver.phone}</p>
+                              </div>
+                              <div>
+                                <span className="text-gray-600">Service Type:</span>
+                                <p className="font-medium">{driver.service_type || 'Standard'}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="ml-4">
+                            <button
+                              onClick={() => handleAssignDriver(driver)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition shadow-md hover:shadow-lg"
+                            >
+                              Assign
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
