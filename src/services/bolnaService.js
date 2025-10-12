@@ -8,6 +8,7 @@ const BOLNA_CALLS_PATH = import.meta.env.VITE_BOLNA_CALLS_PATH;
 const BOLNA_API_URL = `${BOLNA_BASE_URL}${BOLNA_CALLS_PATH}`;
 const BOLNA_API_KEY = import.meta.env.VITE_BOLNA_API_KEY;
 const BOLNA_AGENT_ID = import.meta.env.VITE_BOLNA_AGENT_ID;
+const BOLNA_DRIVER_AGENT_ID = import.meta.env.VITE_BOLNA_DRIVER_AGENT_ID;
 const BOLNA_FROM_NUMBER = import.meta.env.VITE_BOLNA_FROM_NUMBER;
 
 /**
@@ -148,6 +149,101 @@ export const makeBolnaCall = async (phoneNumber, bookingData = {}) => {
 };
 
 /**
+ * Make a voice call to driver using Bolna AI API
+ * Called when a driver is assigned to a booking
+ * @param {string} driverPhone - Driver's phone number
+ * @param {object} driverData - Driver info
+ * @param {object} bookingData - Booking data with patient details
+ * @returns {Promise<object>} API response
+ */
+export const makeDriverCall = async (driverPhone, driverData = {}, bookingData = {}) => {
+  try {
+    // Validate inputs
+    if (!driverPhone) {
+      console.error('❌ [Bolna Driver] Phone number is required');
+      return { success: false, error: 'Phone number is required' };
+    }
+
+    if (!BOLNA_API_KEY || !BOLNA_DRIVER_AGENT_ID) {
+      console.error('❌ [Bolna Driver] API credentials missing');
+      return { success: false, error: 'Bolna Driver API credentials not configured' };
+    }
+
+    // Format phone number
+    const formattedPhone = formatPhoneNumber(driverPhone);
+    if (!formattedPhone) {
+      console.error('❌ [Bolna Driver] Invalid phone number format:', driverPhone);
+      return { success: false, error: 'Invalid phone number format' };
+    }
+
+    console.log('📞 [Bolna Driver] Initiating driver call to:', formattedPhone);
+    console.log('🚗 [Bolna Driver] Driver:', `${driverData.first_name} ${driverData.last_name}`);
+    console.log('📋 [Bolna Driver] Booking ID:', bookingData.booking_id);
+
+    // Prepare request payload for driver call
+    // Variable names must match EXACTLY with Bolna.ai agent configuration
+    // Variables: {victim_location}, {nearby_hospital}, {Phone_umber}
+    const payload = {
+      agent_id: BOLNA_DRIVER_AGENT_ID,
+      recipient_phone_number: formattedPhone,
+      from_phone_number: BOLNA_FROM_NUMBER,
+      user_data: {
+        alert_type: 'Raftaar Ambulance Alert',
+        driver_name: `${driverData.first_name} ${driverData.last_name}`,
+        booking_id: bookingData.booking_id || 'N/A',
+        victim_location: bookingData.address || 'N/A',
+        nearby_hospital: bookingData.nearest_hospital || 'N/A',
+        Phone_umber: bookingData.phone_number || 'N/A',  // Note: typo in Bolna agent config
+        distance: bookingData.distance || 'N/A',
+        timestamp: new Date().toISOString()
+      }
+    };
+
+    console.log('📦 [Bolna Driver] Payload:', JSON.stringify(payload, null, 2));
+
+    // Make API call
+    const response = await fetch(BOLNA_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${BOLNA_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    // Parse response
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.message || `HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    // Success
+    console.log('✅ [Bolna Driver] Call initiated successfully:', {
+      status: data.status,
+      execution_id: data.execution_id,
+      phone: formattedPhone,
+      driver: `${driverData.first_name} ${driverData.last_name}`
+    });
+
+    return {
+      success: true,
+      data: data,
+      phone: formattedPhone
+    };
+
+  } catch (error) {
+    console.error('❌ [Bolna Driver] API call failed:', error.message);
+    console.error('🔍 [Bolna Driver] Error details:', error);
+
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+};
+
+/**
  * Test Bolna API connection
  * @returns {Promise<boolean>} True if API is accessible
  */
@@ -161,6 +257,7 @@ export const testBolnaConnection = async () => {
     console.log('🔍 [Bolna] Testing API connection...');
     console.log('🔑 [Bolna] API Key:', BOLNA_API_KEY ? 'Configured ✓' : 'Missing ✗');
     console.log('🤖 [Bolna] Agent ID:', BOLNA_AGENT_ID ? 'Configured ✓' : 'Missing ✗');
+    console.log('🚗 [Bolna] Driver Agent ID:', BOLNA_DRIVER_AGENT_ID ? 'Configured ✓' : 'Missing ✗');
 
     return true;
   } catch (error) {
@@ -171,6 +268,7 @@ export const testBolnaConnection = async () => {
 
 export default {
   makeBolnaCall,
+  makeDriverCall,
   testBolnaConnection,
   formatPhoneNumber
 };

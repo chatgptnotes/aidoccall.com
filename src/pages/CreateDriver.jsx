@@ -166,7 +166,7 @@ const CreateDriver = () => {
 
       // Insert driver data into database
       setUploadProgress('Saving driver information...');
-      const { data, error } = await supabase
+      const { data, error} = await supabase
         .from('drivers')
         .insert([
           {
@@ -183,6 +183,10 @@ const CreateDriver = () => {
             vehicle_image_url: vehicleImageUrl,
             vehicle_proof_url: vehicleProofUrl,
             driver_proof_url: driverProofUrl,
+            latitude: formData.location.lat,
+            longitude: formData.location.lng,
+            is_available: true,
+            current_status: 'online',
           },
         ])
         .select();
@@ -324,7 +328,7 @@ const CreateDriver = () => {
                 </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
-                    Profile Image <span className="text-red-500">*</span>
+                    Profile Image
                   </label>
                   <input
                     type="file"
@@ -332,7 +336,6 @@ const CreateDriver = () => {
                     onChange={handleFileChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     accept="image/*"
-                    required
                   />
                   <p className="text-xs text-red-500 mt-1">(img-size.png)</p>
                   {imagePreviews.profileImage && (
@@ -351,7 +354,7 @@ const CreateDriver = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
-                    Vehicle Image <span className="text-red-500">*</span>
+                    Vehicle Image
                   </label>
                   <input
                     type="file"
@@ -359,7 +362,6 @@ const CreateDriver = () => {
                     onChange={handleFileChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     accept="image/*"
-                    required
                   />
                   <p className="text-xs text-red-500 mt-1">(img-size.png)</p>
                   {imagePreviews.vehicleImage && (
@@ -374,7 +376,7 @@ const CreateDriver = () => {
                 </div>
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
-                    Vehicle Proof <span className="text-red-500">*</span>
+                    Vehicle Proof
                   </label>
                   <input
                     type="file"
@@ -382,7 +384,6 @@ const CreateDriver = () => {
                     onChange={handleFileChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     accept="image/*"
-                    required
                   />
                   <p className="text-xs text-red-500 mt-1">(img-size.png)</p>
                   {imagePreviews.vehicleProof && (
@@ -401,7 +402,7 @@ const CreateDriver = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className="block text-gray-700 font-medium mb-2">
-                    Driver Proof <span className="text-red-500">*</span>
+                    Driver Proof
                   </label>
                   <input
                     type="file"
@@ -409,7 +410,6 @@ const CreateDriver = () => {
                     onChange={handleFileChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     accept="image/*"
-                    required
                   />
                   <p className="text-xs text-red-500 mt-1">(img-size.png)</p>
                   {imagePreviews.driverProof && (
