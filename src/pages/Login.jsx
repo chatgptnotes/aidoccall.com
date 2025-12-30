@@ -44,7 +44,7 @@ const Login = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
       <div className="bg-white p-8 rounded-lg shadow-2xl w-full max-w-md">
         <h2 className="text-3xl font-bold text-center mb-6 text-gray-800">
-          {isRegisterMode ? 'Create New Account' : 'Raftaar Login'}
+          {isRegisterMode ? 'Create New Account' : 'AidocCall Login'}
         </h2>
 
         {error && (

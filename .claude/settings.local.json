@@ -10,7 +10,8 @@
       "Bash(npx supabase:*)",
       "Read(//var/folders/2h/hkkt_6m5723fk6whtjx7pk_w0000gp/T/TemporaryItems/NSIRD_screencaptureui_lRPSMq/**)",
       "Bash(git push:*)",
-      "Bash(git remote set-url:*)"
+      "Bash(git remote set-url:*)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []

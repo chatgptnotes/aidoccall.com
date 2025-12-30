@@ -4,7 +4,7 @@ import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import PhoneInput from 'react-phone-input-2';
 import 'react-phone-input-2/lib/style.css';
 import { supabase } from '../lib/supabaseClient';
-import logo from '../assets/raftaar_seva_logo.png';
+// import logo from '../assets/raftaar_seva_logo.png';
 import { autoAssignDriver } from '../services/driverAssignment';
 
 const libraries = ['places'];
@@ -513,23 +513,21 @@ const EmergencyLocation = () => {
           <div className="flex items-center justify-between">
             {/* Logo Section */}
             <div className="flex items-center gap-3">
-              <img
-                src={logo}
-                alt="Raftaar Seva Logo"
-                className="h-12 sm:h-14 md:h-16 w-auto object-contain"
-              />
+              <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg sm:text-xl md:text-2xl">AC</span>
+              </div>
               <div className="hidden lg:block">
                 <h1 className="text-base sm:text-lg md:text-xl font-bold text-gray-900 leading-tight">
-                  Raftaar Help Emergency Seva
+                  AidocCall.com
                 </h1>
-                <p className="text-xs text-blue-600 mt-0.5">Real-Time Emergency Response System</p>
+                <p className="text-xs text-blue-600 mt-0.5">Medical Consultation Platform</p>
               </div>
             </div>
 
-            {/* Emergency Badge */}
+            {/* Medical Badge */}
             <div className="flex items-center gap-3">
-              <div className="bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg">
-                EMERGENCY
+              <div className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm shadow-lg">
+                MEDICAL CARE
               </div>
             </div>
           </div>
@@ -564,7 +562,7 @@ const EmergencyLocation = () => {
                   Allow Location Access
                 </h2>
                 <p className="text-gray-600 text-sm sm:text-base leading-relaxed px-2">
-                  We need your location to confirm the emergency. Please allow access for better assistance.
+                  We need your location to provide optimal medical consultation. Please allow access for better assistance.
                 </p>
               </div>
 
@@ -703,7 +701,7 @@ const EmergencyLocation = () => {
         {locationGranted && (
           <div className="hidden md:block absolute bottom-4 left-4 bg-blue-600 text-white px-4 py-3 rounded-xl shadow-lg z-10 text-sm max-w-xs">
             <p className="font-semibold mb-1">💡 Quick Tip:</p>
-            <p className="text-xs">Drag the red marker or click anywhere on the map to adjust your location</p>
+            <p className="text-xs">Drag the marker or click anywhere on the map to adjust your consultation location</p>
           </div>
         )}
         </div>
@@ -714,7 +712,7 @@ const EmergencyLocation = () => {
         <div className="md:hidden px-4 mt-3">
           <div className="bg-blue-50 border-l-4 border-blue-600 px-4 py-3 rounded-r-lg">
             <p className="text-sm text-blue-900 font-semibold mb-1">💡 Quick Tip:</p>
-            <p className="text-xs text-blue-800">Drag the red marker or click anywhere on the map to adjust your location</p>
+            <p className="text-xs text-blue-800">Drag the marker or click anywhere on the map to adjust your consultation location</p>
           </div>
         </div>
       )}
@@ -729,7 +727,7 @@ const EmergencyLocation = () => {
                 <span className="text-xl sm:text-2xl">📋</span>
               </div>
               <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800">
-                Confirm Your Emergency Location
+                Request Medical Consultation
               </h2>
             </div>
 
@@ -814,7 +812,7 @@ const EmergencyLocation = () => {
                     </svg>
                     <div>
                       <p className="text-green-700 font-semibold">
-                        Emergency request submitted successfully! We'll contact you shortly.
+                        Medical consultation request submitted successfully! We'll contact you shortly.
                       </p>
                       <p className="text-green-600 text-sm mt-1">
                         To submit another request, please refresh the page.
@@ -853,7 +851,7 @@ const EmergencyLocation = () => {
                     Submitting...
                   </>
                 ) : (
-                  'Submit Emergency Request'
+                  'Request Medical Consultation'
                 )}
               </button>
             </form>
@@ -884,7 +882,7 @@ const EmergencyLocation = () => {
                   <svg className="w-5 h-5 text-blue-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
-                  <span className="text-base sm:text-lg">support@emergencyseva.in</span>
+                  <span className="text-base sm:text-lg">support@aidoccall.com</span>
                 </div>
 
                 {/* Address */}
@@ -894,7 +892,7 @@ const EmergencyLocation = () => {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   <p className="text-sm sm:text-base leading-relaxed">
-                    Emergency Seva office is at 701, Casa royal apartment, Mohan nagar, Nagpur and feel free to visit us for any assistance.
+                    AidocCall office is at 701, Casa royal apartment, Mohan nagar, Nagpur and feel free to visit us for medical consultation assistance.
                   </p>
                 </div>
               </div>
@@ -904,7 +902,7 @@ const EmergencyLocation = () => {
             <div>
               <h3 className="text-blue-300 font-bold text-xl sm:text-2xl mb-3 sm:mb-4">Join Our Team</h3>
               <p className="text-white text-sm sm:text-base leading-relaxed">
-                At Emergency Seva, your safety and satisfaction are our top priorities. Whether you need emergency assistance, have a general inquiry, or want to provide feedback, we're just a call or message away.
+                At AidocCall, your health and satisfaction are our top priorities. Whether you need medical consultation, have a general inquiry, or want to provide feedback, we're just a call or message away.
               </p>
             </div>
           </div>

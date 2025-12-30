@@ -22,12 +22,12 @@ const Sidebar = () => {
       {/* Logo */}
       <div className="p-6 border-b border-gray-200">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-blue-600 rounded-lg flex items-center justify-center">
-            <span className="text-white font-bold text-xl">RS</span>
+          <div className="w-12 h-12 bg-gradient-to-br from-blue-600 to-green-600 rounded-lg flex items-center justify-center">
+            <span className="text-white font-bold text-xl">AC</span>
           </div>
           <div>
-            <h1 className="text-xl font-bold text-gray-800">Raftaar</h1>
-            <p className="text-xs text-gray-500">Emergency Seva</p>
+            <h1 className="text-xl font-bold text-gray-800">AidocCall</h1>
+            <p className="text-xs text-gray-500">Medical Platform</p>
           </div>
         </div>
       </div>
