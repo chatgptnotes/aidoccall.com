@@ -10,8 +10,14 @@ const Login = () => {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const [isRegisterMode, setIsRegisterMode] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [userRole, setUserRole] = useState('patient'); // Default role for registration
   const navigate = useNavigate();
-  const { signIn, signUp } = useAuth();
+  const { signIn, signUp, fetchUserProfile } = useAuth();
+
+  const togglePasswordVisibility = () => {
+    setShowPassword(!showPassword);
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -21,17 +27,25 @@ const Login = () => {
 
     try {
       if (isRegisterMode) {
-        // Registration
-        await signUp(email, password, { name: fullName });
-        setSuccess('Account created successfully! You can now login.');
+        // Registration with role
+        await signUp(email, password, { 
+          name: fullName,
+          role: userRole 
+        });
+        setSuccess(`${userRole === 'telecaller' ? 'Telecaller' : 'Patient'} account created successfully! You can now login.`);
         setIsRegisterMode(false);
         setEmail('');
         setPassword('');
         setFullName('');
+        setUserRole('patient'); // Reset to default
       } else {
         // Login
-        await signIn(email, password);
-        navigate('/dashboard');
+        const loginResult = await signIn(email, password);
+        
+        // Wait a moment for the AuthContext to update the user profile
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 100);
       }
     } catch (error) {
       setError(error.message || (isRegisterMode ? 'Registration failed. Please try again.' : 'Invalid credentials. Please try again.'));
@@ -61,20 +75,38 @@ const Login = () => {
 
         <form onSubmit={handleSubmit}>
           {isRegisterMode && (
-            <div className="mb-4">
-              <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fullName">
-                Full Name
-              </label>
-              <input
-                id="fullName"
-                type="text"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="Enter your full name"
-                required
-              />
-            </div>
+            <>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="fullName">
+                  Full Name
+                </label>
+                <input
+                  id="fullName"
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="userRole">
+                  Account Type
+                </label>
+                <select
+                  id="userRole"
+                  value={userRole}
+                  onChange={(e) => setUserRole(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
+                >
+                  <option value="patient">Patient - Book consultations and manage health records</option>
+                  <option value="telecaller">Telecaller - Coordinate medical consultations</option>
+                </select>
+              </div>
+            </>
           )}
 
           <div className="mb-4">
@@ -96,16 +128,29 @@ const Login = () => {
             <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
               Password
             </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter your password"
-              required
-              minLength={6}
-            />
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? "text" : "password"}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your password"
+                required
+                minLength={6}
+              />
+              <button
+                type="button"
+                onClick={togglePasswordVisibility}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 focus:outline-none focus:text-blue-500 transition-colors duration-200"
+                tabIndex={-1}
+                title={showPassword ? 'Hide password' : 'Show password'}
+              >
+                <span className="material-icons text-lg select-none">
+                  {showPassword ? 'visibility_off' : 'visibility'}
+                </span>
+              </button>
+            </div>
           </div>
 
           <button
@@ -117,24 +162,43 @@ const Login = () => {
           </button>
         </form>
 
-        <div className="mt-4 text-center">
+        <div className="mt-4 text-center space-y-3">
           <button
             onClick={() => {
               setIsRegisterMode(!isRegisterMode);
               setError('');
               setSuccess('');
             }}
-            className="text-blue-600 hover:text-blue-800 text-sm font-semibold"
+            className="text-blue-600 hover:text-blue-800 text-sm font-semibold block w-full"
           >
             {isRegisterMode ? '← Back to Login' : 'Create New Account →'}
           </button>
         </div>
 
         {!isRegisterMode && (
-          <div className="mt-4 text-center text-sm text-gray-600">
-            <p>Demo credentials:</p>
-            <p>Email: admin@gmail.com</p>
-            <p>Password: bhupendra</p>
+          <div className="mt-4 text-center">
+            <div className="text-sm text-gray-600 mb-4">
+              <div className="bg-gray-50 p-4 rounded-lg border">
+                <h3 className="font-semibold mb-2 text-gray-800">Demo Credentials:</h3>
+                <div className="text-left space-y-2">
+                  <div>
+                    <span className="font-medium">Admin:</span>
+                    <br />
+                    <span className="text-xs text-gray-500">Email: admin@raftaar.com | Password: admin123</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Telecaller:</span>
+                    <br />
+                    <span className="text-xs text-gray-500">Email: telecaller@raftaar.com | Password: tele123</span>
+                  </div>
+                  <div>
+                    <span className="font-medium">Patient:</span>
+                    <br />
+                    <span className="text-xs text-gray-500">Email: patient@raftaar.com | Password: patient123</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>

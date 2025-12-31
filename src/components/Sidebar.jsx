@@ -7,9 +7,11 @@ const Sidebar = () => {
   const [activeMenu, setActiveMenu] = useState('dashboard');
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: '🏠', path: '/dashboard/bookings', badge: '13' },
-    { id: 'driver', label: 'Driver', icon: '🚗', path: '/dashboard/driver' },
-    { id: 'hospital', label: 'Hospital', icon: '🏥', path: '/dashboard/hospital' },
+    { id: 'telecallers', label: 'Telecallers', icon: '📞', path: '/dashboard/telecallers' },
+    { id: 'performance', label: 'Performance', icon: '📊', path: '/dashboard/performance' },
+    { id: 'call-logs', label: 'Call Logs', icon: '📋', path: '/dashboard/call-logs' },
+    { id: 'schedules', label: 'Schedules', icon: '📅', path: '/dashboard/schedules' },
+    { id: 'reports', label: 'Reports', icon: '📈', path: '/dashboard/reports' },
   ];
 
   const handleMenuClick = (item) => {

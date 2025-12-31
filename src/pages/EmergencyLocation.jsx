@@ -24,6 +24,19 @@ const EmergencyLocation = () => {
   const [nearestHospital, setNearestHospital] = useState(null);
   const [hospitalPhone, setHospitalPhone] = useState(null);
   const [hospitalWebsite, setHospitalWebsite] = useState(null);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  // Clear any cached form data on component mount
+  useEffect(() => {
+    console.log('🔄 [COMPONENT MOUNT] Clearing any cached form data');
+    setAddress('');
+    setCity('');
+    setPincode('');
+    setMobile('');
+    setUserLocation(null);
+    setLocationGranted(false);
+    setShowModal(true);
+  }, []);
 
   // Load Google Maps API
   const { isLoaded, loadError } = useLoadScript({
@@ -331,6 +344,11 @@ const EmergencyLocation = () => {
           const { latitude, longitude } = position.coords;
           console.log('📍 [LOCATION] User location obtained:', latitude, longitude);
 
+          // Clear existing address data immediately
+          setAddress('Loading address...');
+          setCity('');
+          setPincode('');
+
           setUserLocation({ lat: latitude, lng: longitude });
           setLocationGranted(true);
           setShowModal(false);
@@ -362,34 +380,57 @@ const EmergencyLocation = () => {
 
   const reverseGeocode = async (lat, lng) => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    console.log('🌍 [REVERSE GEOCODE] Starting reverse geocode for:', lat, lng);
+    setIsLoadingAddress(true);
+    
     if (!apiKey) {
+      console.warn('⚠️ [REVERSE GEOCODE] No Google Maps API key found');
       setAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      setIsLoadingAddress(false);
       return;
     }
 
     try {
+      console.log('📡 [REVERSE GEOCODE] Making API request...');
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${apiKey}`
       );
       const data = await response.json();
+      
+      console.log('📍 [REVERSE GEOCODE] API Response:', data);
 
       if (data.results && data.results[0]) {
         const result = data.results[0];
+        console.log('✅ [REVERSE GEOCODE] Address found:', result.formatted_address);
         setAddress(result.formatted_address);
 
         // Extract city and pincode from address components
+        let foundCity = '';
+        let foundPincode = '';
+        
         result.address_components.forEach(component => {
-          if (component.types.includes('locality')) {
-            setCity(component.long_name);
+          if (component.types.includes('locality') || component.types.includes('administrative_area_level_2')) {
+            foundCity = component.long_name;
           }
           if (component.types.includes('postal_code')) {
-            setPincode(component.long_name);
+            foundPincode = component.long_name;
           }
         });
+        
+        console.log('🏙️ [REVERSE GEOCODE] City found:', foundCity);
+        console.log('📮 [REVERSE GEOCODE] Pincode found:', foundPincode);
+        
+        setCity(foundCity);
+        setPincode(foundPincode);
+      } else {
+        console.warn('⚠️ [REVERSE GEOCODE] No results found');
+        setAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
       }
     } catch (error) {
-      console.error('Geocoding error:', error);
+      console.error('❌ [REVERSE GEOCODE] Error:', error);
       setAddress(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    } finally {
+      setIsLoadingAddress(false);
     }
   };
 
@@ -399,6 +440,12 @@ const EmergencyLocation = () => {
     const newLng = e.latLng.lng();
 
     console.log('📍 [MARKER DRAG] New location:', newLat, newLng);
+    
+    // Clear existing address data immediately
+    setAddress('🔄 Loading address...');
+    setCity('');
+    setPincode('');
+    
     setUserLocation({ lat: newLat, lng: newLng });
     reverseGeocode(newLat, newLng);
 
@@ -414,6 +461,12 @@ const EmergencyLocation = () => {
     const newLng = e.latLng.lng();
 
     console.log('📍 [MAP CLICK] New location:', newLat, newLng);
+    
+    // Clear existing address data immediately
+    setAddress('🔄 Loading address...');
+    setCity('');
+    setPincode('');
+    
     setUserLocation({ lat: newLat, lng: newLng });
     setLocationGranted(true);
     reverseGeocode(newLat, newLng);
@@ -440,28 +493,50 @@ const EmergencyLocation = () => {
       // Generate a unique booking ID using timestamp
       const bookingId = `EMG-${Date.now()}`;
 
-      // Prepare the data to insert
-      const bookingData = {
+      // Prepare the basic data to insert
+      const basicBookingData = {
         booking_id: bookingId,
         address: address,
         city: city,
         pincode: pincode,
         phone_number: mobile,
         status: 'pending',
-        nearest_hospital: nearestHospital,
-        hospital_phone: hospitalPhone,
-        hospital_website: hospitalWebsite,
-        // Store location coordinates in remarks
+        // Store location coordinates and hospital info in remarks for now
         remarks: userLocation
-          ? `Location: ${userLocation.lat}, ${userLocation.lng}`
-          : null
+          ? `Location: ${userLocation.lat}, ${userLocation.lng}${nearestHospital ? `\nNearest Hospital: ${nearestHospital}` : ''}${hospitalPhone ? `\nHospital Phone: ${hospitalPhone}` : ''}${hospitalWebsite ? `\nHospital Website: ${hospitalWebsite}` : ''}`
+          : nearestHospital ? `Nearest Hospital: ${nearestHospital}${hospitalPhone ? `\nHospital Phone: ${hospitalPhone}` : ''}${hospitalWebsite ? `\nHospital Website: ${hospitalWebsite}` : ''}` : null
       };
 
-      // Insert data into Supabase
-      const { data, error } = await supabase
-        .from('bookings')
-        .insert([bookingData])
-        .select();
+      // Try to insert data with hospital columns first, fall back to basic data if columns don't exist
+      let data, error;
+      
+      try {
+        // Try with hospital columns
+        const fullBookingData = {
+          ...basicBookingData,
+          nearest_hospital: nearestHospital,
+          hospital_phone: hospitalPhone,
+          hospital_website: hospitalWebsite,
+        };
+        
+        const result = await supabase
+          .from('bookings')
+          .insert([fullBookingData])
+          .select();
+          
+        data = result.data;
+        error = result.error;
+      } catch (hospitalColumnError) {
+        // If hospital columns don't exist, insert basic data only
+        console.warn('Hospital columns not found, using basic booking data:', hospitalColumnError);
+        const result = await supabase
+          .from('bookings')
+          .insert([basicBookingData])
+          .select();
+          
+        data = result.data;
+        error = result.error;
+      }
 
       if (error) {
         throw error;

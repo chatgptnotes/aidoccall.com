@@ -3,12 +3,47 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import EmergencyLocation from './pages/EmergencyLocation';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
+import TelecallerDashboard from './pages/TelecallerDashboard';
+import PatientDashboard from './pages/PatientDashboard';
+import TelecallerManagement from './pages/TelecallerManagement';
 import Driver from './pages/Driver';
 import CreateDriver from './pages/CreateDriver';
 import EditDriver from './pages/EditDriver';
 import Bookings from './pages/Bookings';
 import Hospital from './pages/Hospital';
 import ProtectedRoute from './components/ProtectedRoute';
+import { useAuth } from './contexts/AuthContext';
+
+// Role-based Dashboard Component
+const RoleDashboard = () => {
+  const { userRole, userProfile, loading } = useAuth();
+  
+  if (loading) {
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+    </div>;
+  }
+  
+  // Get role from userRole or userProfile with debugging
+  const role = userRole || userProfile?.role;
+  console.log('🔍 Role Detection - userRole:', userRole, 'userProfile.role:', userProfile?.role, 'final role:', role);
+  
+  // Route to appropriate dashboard based on role
+  if (role === 'telecaller') {
+    console.log('✅ Routing to TelecallerDashboard');
+    return <TelecallerDashboard />;
+  } else if (role === 'patient' || role === 'user') {
+    console.log('✅ Routing to PatientDashboard');
+    return <PatientDashboard />;
+  } else if (role === 'admin') {
+    console.log('✅ Routing to AdminDashboard');
+    return <Dashboard />;
+  } else {
+    // If no role detected, show role selection or default to patient
+    console.log('❌ No role detected, defaulting to PatientDashboard. userRole:', userRole, 'userProfile:', userProfile);
+    return <PatientDashboard />;
+  }
+};
 
 const App = () => {
   return (
@@ -20,7 +55,7 @@ const App = () => {
           path="/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <RoleDashboard />
             </ProtectedRoute>
           }
         />
@@ -61,6 +96,46 @@ const App = () => {
           element={
             <ProtectedRoute>
               <Hospital />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/telecallers"
+          element={
+            <ProtectedRoute>
+              <TelecallerManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/performance"
+          element={
+            <ProtectedRoute>
+              <TelecallerManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/call-logs"
+          element={
+            <ProtectedRoute>
+              <TelecallerManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/schedules"
+          element={
+            <ProtectedRoute>
+              <TelecallerManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/dashboard/reports"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
             </ProtectedRoute>
           }
         />
