@@ -27,3 +27,15 @@ UPDATE doc_patients p
 SET auth_user_id = u.id
 FROM auth.users u
 WHERE p.email = u.email AND p.auth_user_id IS NULL;
+
+-- ============================================
+-- 4. Reload PostgREST schema cache
+-- This ensures the API recognizes all new columns
+-- ============================================
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================
+-- VERIFICATION QUERIES (run to confirm success)
+-- ============================================
+-- SELECT column_name FROM information_schema.columns WHERE table_name = 'doc_patients' AND column_name = 'auth_user_id';
+-- SELECT column_name FROM information_schema.columns WHERE table_name = 'doc_patient_doctor_selections' AND column_name = 'is_favorite';
