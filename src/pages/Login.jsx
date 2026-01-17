@@ -13,7 +13,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [userRole, setUserRole] = useState('patient'); // Default role for registration
   const navigate = useNavigate();
-  const { signIn, signUp, fetchUserProfile } = useAuth();
+  const { signIn, signUp } = useAuth();
 
   const togglePasswordVisibility = () => {
     setShowPassword(!showPassword);
@@ -39,13 +39,11 @@ const Login = () => {
         setFullName('');
         setUserRole('patient'); // Reset to default
       } else {
-        // Login
-        const loginResult = await signIn(email, password);
-        
-        // Wait a moment for the AuthContext to update the user profile
-        setTimeout(() => {
-          navigate('/dashboard');
-        }, 100);
+        // Login - signIn triggers onAuthStateChange which handles fetchUserProfile
+        await signIn(email, password);
+
+        // Navigate to dashboard - RoleDashboard will show loading while role is fetched
+        navigate('/dashboard');
       }
     } catch (error) {
       setError(error.message || (isRegisterMode ? 'Registration failed. Please try again.' : 'Invalid credentials. Please try again.'));

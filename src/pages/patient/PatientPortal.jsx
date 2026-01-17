@@ -28,7 +28,7 @@ import { supabase } from '../../lib/supabaseClient';
 
 const PatientPortal = () => {
   const navigate = useNavigate();
-  const { signOut, user } = useAuth();
+  const { signOut, user, userRole } = useAuth();
   const [activeTab, setActiveTab] = useState('home');
   const [loading, setLoading] = useState(true);
   const [patientData, setPatientData] = useState(null);
@@ -74,7 +74,7 @@ const PatientPortal = () => {
 
   useEffect(() => {
     loadPatientData();
-  }, [user]);
+  }, [user, userRole]);
 
   useEffect(() => {
     if (activeTab === 'doctors') {
@@ -94,14 +94,28 @@ const PatientPortal = () => {
       const data = await getPatientProfile(user.id);
 
       if (!data) {
-        // Patient profile not found - redirect to registration
-        navigate('/patient/register');
+        // Patient profile not found
+        // Only redirect to registration if user is a patient/user role
+        // Do NOT redirect admins or telecallers
+        if (userRole === 'patient' || userRole === 'user') {
+          navigate('/patient/register');
+          return;
+        }
+        // For non-patient roles, just set loading to false and show empty state
+        console.log('No patient profile found for role:', userRole);
+        setLoading(false);
         return;
       }
 
       if (!data.registration_completed) {
-        // Registration not completed - redirect to continue
-        navigate('/patient/register');
+        // Registration not completed
+        // Only redirect to registration if user is a patient/user role
+        if (userRole === 'patient' || userRole === 'user') {
+          navigate('/patient/register');
+          return;
+        }
+        console.log('Registration not completed for role:', userRole);
+        setLoading(false);
         return;
       }
 
@@ -123,12 +137,7 @@ const PatientPortal = () => {
       setDoctors(data);
     } catch (error) {
       console.error('Error loading doctors:', error);
-      // Mock data fallback
-      setDoctors([
-        { id: '1', full_name: 'Dr. Amit Kumar', specialization: 'Cardiology', hospital_affiliation: 'AIIMS Delhi', rating: 4.8, consultation_fee: 500, is_verified_green_flag: true, status: 'active' },
-        { id: '2', full_name: 'Dr. Priya Sharma', specialization: 'Pediatrics', hospital_affiliation: 'Apollo Hospital', rating: 4.9, consultation_fee: 400, is_verified_green_flag: true, status: 'active' },
-        { id: '3', full_name: 'Dr. Karan Singh', specialization: 'General Medicine', hospital_affiliation: 'Fortis Hospital', rating: 4.7, consultation_fee: 350, is_verified_green_flag: true, status: 'active' }
-      ]);
+      setDoctors([]);
     }
   };
 
@@ -213,6 +222,11 @@ const PatientPortal = () => {
     if (!selectedDoctor || !bookingData.date || !bookingData.time || !bookingData.visitType) return;
 
     try {
+      // Use online_fee for online visits, consultation_fee for physical visits
+      const fee = bookingData.visitType === 'online'
+        ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0)
+        : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0);
+
       const appointment = await createAppointment(patientData.id, {
         doctorId: selectedDoctor.id,
         patientName: patientData.full_name,
@@ -223,7 +237,7 @@ const PatientPortal = () => {
         visitType: bookingData.visitType,
         reasonForVisit: bookingData.reason,
         symptoms: bookingData.symptoms,
-        consultationFee: selectedDoctor.consultation_fee
+        consultationFee: fee
       });
 
       setCreatedAppointment(appointment);
@@ -258,6 +272,14 @@ const PatientPortal = () => {
     } finally {
       setProcessingPayment(false);
     }
+  };
+
+  const handleContinuePayment = (appointment) => {
+    // Set the appointment data for payment
+    setCreatedAppointment(appointment);
+    setSelectedDoctor(appointment.doctor);
+    setBookingStep(3); // Go directly to payment step
+    setShowBookingModal(true);
   };
 
   const handleCancelAppointment = async (appointmentId) => {
@@ -518,9 +540,19 @@ const PatientPortal = () => {
                         </p>
                         <p className="text-sm text-gray-500">{apt.appointment_time}</p>
                       </div>
-                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(apt.status)}`}>
-                        {apt.status}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        {apt.payment_status === 'pending' && (
+                          <button
+                            onClick={() => handleContinuePayment(apt)}
+                            className="px-3 py-1 bg-orange-500 text-white rounded-lg text-xs font-medium hover:bg-orange-600"
+                          >
+                            Continue
+                          </button>
+                        )}
+                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(apt.status)}`}>
+                          {apt.status}
+                        </span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -613,43 +645,55 @@ const PatientPortal = () => {
 
             {/* Doctor Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {doctors.map((doctor) => (
-                <div key={doctor.id} className="bg-white rounded-xl shadow hover:shadow-lg transition p-6">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center">
-                      <span className="material-icons text-blue-600 text-2xl">person</span>
-                    </div>
-                    {doctor.is_verified_green_flag && (
-                      <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
-                        <span className="material-icons text-sm">verified</span>
-                        Verified
-                      </span>
-                    )}
-                  </div>
-                  <h3 className="text-lg font-bold text-gray-800">{doctor.full_name}</h3>
-                  <p className="text-blue-600 font-medium">{doctor.specialization}</p>
-                  <p className="text-sm text-gray-500 mb-4">{doctor.hospital_affiliation}</p>
-
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-1">
-                      <span className="material-icons text-yellow-500 text-sm">star</span>
-                      <span className="font-medium">{doctor.rating || 4.5}</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xl font-bold text-gray-800">Rs. {doctor.consultation_fee}</p>
-                      <p className="text-xs text-gray-500">per session</p>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => openBookingModal(doctor)}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
-                  >
-                    <span className="material-icons text-sm">calendar_today</span>
-                    Book Consultation
-                  </button>
+              {doctors.length === 0 ? (
+                <div className="col-span-full text-center py-12 text-gray-500">
+                  <span className="material-icons text-5xl mb-3">search_off</span>
+                  <p className="mb-2">No doctors found</p>
+                  <p className="text-sm">Try adjusting your filters or check back later</p>
                 </div>
-              ))}
+              ) : (
+                doctors.map((doctor) => (
+                  <div key={doctor.id} className="bg-white rounded-xl shadow hover:shadow-lg transition p-6">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+                        {doctor.profile_image ? (
+                          <img src={doctor.profile_image} alt={doctor.full_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <span className="material-icons text-blue-600 text-2xl">person</span>
+                        )}
+                      </div>
+                      {doctor.is_verified && (
+                        <span className="flex items-center gap-1 bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs font-medium">
+                          <span className="material-icons text-sm">verified</span>
+                          Verified
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-800">{doctor.full_name}</h3>
+                    <p className="text-blue-600 font-medium">{doctor.specialization}</p>
+                    <p className="text-sm text-gray-500 mb-4">{doctor.clinic_name || doctor.clinic_address || 'Available for consultation'}</p>
+
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-1">
+                        <span className="material-icons text-blue-500 text-sm">work_history</span>
+                        <span className="font-medium">{doctor.experience_years || 0} yrs exp</span>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xl font-bold text-gray-800">Rs. {doctor.consultation_fee || doctor.online_fee || 0}</p>
+                        <p className="text-xs text-gray-500">per session</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => openBookingModal(doctor)}
+                      className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition flex items-center justify-center gap-2"
+                    >
+                      <span className="material-icons text-sm">calendar_today</span>
+                      Book Consultation
+                    </button>
+                  </div>
+                ))
+              )}
             </div>
           </div>
         )}
@@ -758,7 +802,7 @@ const PatientPortal = () => {
                           {apt.status === 'confirmed' && apt.visit_type === 'physical' && (
                             <p className="mt-2 text-xs text-gray-500">
                               <span className="material-icons text-xs align-middle">location_on</span>
-                              {apt.doctor?.clinic_address || apt.doctor?.hospital_affiliation || 'Clinic'}
+                              {apt.doctor?.clinic_name || apt.doctor?.clinic_address || 'Clinic'}
                             </p>
                           )}
                         </div>
@@ -1001,16 +1045,20 @@ const PatientPortal = () => {
             {/* Doctor Info Card */}
             <div className="p-6 border-b border-gray-100">
               <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-lg">
-                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center">
-                  <span className="material-icons text-blue-600 text-2xl">person</span>
+                <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+                  {selectedDoctor.profile_image ? (
+                    <img src={selectedDoctor.profile_image} alt={selectedDoctor.full_name} className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="material-icons text-blue-600 text-2xl">person</span>
+                  )}
                 </div>
                 <div className="flex-1">
                   <p className="font-bold text-gray-800">{selectedDoctor.full_name}</p>
                   <p className="text-sm text-blue-600">{selectedDoctor.specialization}</p>
-                  <p className="text-sm text-gray-500">{selectedDoctor.hospital_affiliation}</p>
+                  <p className="text-sm text-gray-500">{selectedDoctor.clinic_name || selectedDoctor.clinic_address || ''}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-gray-800">Rs. {selectedDoctor.consultation_fee}</p>
+                  <p className="text-lg font-bold text-gray-800">Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee) || 0}</p>
                   <p className="text-xs text-gray-500">per session</p>
                 </div>
               </div>
@@ -1196,7 +1244,7 @@ const PatientPortal = () => {
                     <div className="border-t border-gray-200 mt-4 pt-4">
                       <div className="flex justify-between text-lg">
                         <span className="font-bold text-gray-800">Total Amount</span>
-                        <span className="font-bold text-blue-600">Rs. {selectedDoctor.consultation_fee}</span>
+                        <span className="font-bold text-blue-600">Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)}</span>
                       </div>
                     </div>
                   </div>
@@ -1244,7 +1292,7 @@ const PatientPortal = () => {
                       ) : (
                         <>
                           <span className="material-icons text-sm">lock</span>
-                          Pay Rs. {selectedDoctor.consultation_fee}
+                          Pay Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)}
                         </>
                       )}
                     </button>
@@ -1316,7 +1364,7 @@ const PatientPortal = () => {
                           <div className="flex items-start gap-2 text-gray-600">
                             <span className="material-icons text-green-600 text-lg">location_on</span>
                             <p className="text-sm">
-                              {selectedDoctor.clinic_address || selectedDoctor.hospital_affiliation || 'Address will be provided via SMS/Email'}
+                              {selectedDoctor.clinic_name || selectedDoctor.clinic_address || 'Address will be provided via SMS/Email'}
                             </p>
                           </div>
                         </div>
@@ -1347,7 +1395,7 @@ const PatientPortal = () => {
                         </div>
                         <div className="flex justify-between mt-2">
                           <span className="text-gray-600">Amount Paid</span>
-                          <span className="font-bold text-gray-800">Rs. {selectedDoctor.consultation_fee}</span>
+                          <span className="font-bold text-gray-800">Rs. {createdAppointment.amount || (bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0))}</span>
                         </div>
                         {createdAppointment.payment_id && (
                           <div className="flex justify-between mt-2">
@@ -1513,7 +1561,7 @@ const PatientPortal = () => {
 
       {/* Footer */}
       <div className="py-6 text-center text-sm text-gray-400">
-        v1.3 - 2026-01-10
+        v1.5 - 2026-01-17
       </div>
     </div>
   );

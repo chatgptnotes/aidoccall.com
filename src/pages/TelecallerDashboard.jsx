@@ -78,10 +78,9 @@ const TelecallerDashboard = () => {
   const fetchAvailableDoctors = async () => {
     try {
       const { data, error } = await supabase
-        .from('doctors')
+        .from('doc_doctors')
         .select('*')
-        .eq('status', 'active')
-        .lt('current_patient_load', 'max_patient_load');
+        .order('full_name', { ascending: true });
 
       if (error) throw error;
       setAvailableDoctors(data || []);
@@ -93,34 +92,25 @@ const TelecallerDashboard = () => {
           id: '1',
           full_name: 'Dr. Amit Kumar',
           specialization: 'Cardiology',
-          rating: 4.8,
+          experience_years: 12,
           consultation_fee: 500,
-          is_verified_green_flag: true,
-          current_patient_load: 3,
-          max_patient_load: 8,
-          status: 'active'
+          is_verified: true
         },
         {
           id: '2',
           full_name: 'Dr. Priya Sharma',
           specialization: 'Pediatrics',
-          rating: 4.9,
+          experience_years: 8,
           consultation_fee: 400,
-          is_verified_green_flag: true,
-          current_patient_load: 2,
-          max_patient_load: 6,
-          status: 'active'
+          is_verified: true
         },
         {
           id: '3',
           full_name: 'Dr. Karan Malhotra',
           specialization: 'General Medicine',
-          rating: 4.7,
+          experience_years: 15,
           consultation_fee: 350,
-          is_verified_green_flag: true,
-          current_patient_load: 1,
-          max_patient_load: 10,
-          status: 'active'
+          is_verified: true
         }
       ]);
     }
@@ -387,27 +377,16 @@ const TelecallerDashboard = () => {
                 <div key={doctor.id} className="border rounded-lg p-4 hover:bg-gray-50 transition">
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="font-semibold text-gray-800">{doctor.full_name}</h3>
-                    {doctor.is_verified_green_flag && (
+                    {doctor.is_verified && (
                       <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
-                        ✅ Verified
+                        Verified
                       </span>
                     )}
                   </div>
                   <p className="text-sm text-gray-600 mb-2">{doctor.specialization}</p>
                   <div className="flex items-center justify-between text-xs text-gray-500">
-                    <span>Rating: ⭐ {doctor.rating}</span>
-                    <span>₹{doctor.consultation_fee}</span>
-                  </div>
-                  <div className="mt-2">
-                    <div className="w-full bg-gray-200 rounded-full h-2">
-                      <div 
-                        className="bg-blue-600 h-2 rounded-full" 
-                        style={{width: `${(doctor.current_patient_load / doctor.max_patient_load) * 100}%`}}
-                      ></div>
-                    </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {doctor.current_patient_load}/{doctor.max_patient_load} patients
-                    </p>
+                    <span>{doctor.experience_years || 0} yrs experience</span>
+                    <span>₹{doctor.consultation_fee || doctor.online_fee || 0}</span>
                   </div>
                 </div>
               ))}
@@ -421,7 +400,7 @@ const TelecallerDashboard = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>AidocCall Telecaller Portal v1.1 - 2025-12-31</p>
+          <p>v1.2 - 2026-01-17</p>
         </div>
       </div>
 

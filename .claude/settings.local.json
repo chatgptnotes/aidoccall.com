@@ -11,7 +11,14 @@
       "Read(//var/folders/2h/hkkt_6m5723fk6whtjx7pk_w0000gp/T/TemporaryItems/NSIRD_screencaptureui_lRPSMq/**)",
       "Bash(git push:*)",
       "Bash(git remote set-url:*)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(npm install)",
+      "Bash(npm run build:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(grep:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

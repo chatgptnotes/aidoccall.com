@@ -499,11 +499,12 @@ export const getSelectedDoctors = async (patientId) => {
         id,
         full_name,
         specialization,
-        hospital_affiliation,
-        rating,
+        clinic_name,
+        clinic_address,
+        experience_years,
         consultation_fee,
-        is_verified_green_flag,
-        status
+        online_fee,
+        is_verified
       )
     `)
     .eq('patient_id', patientId)
@@ -553,12 +554,16 @@ export const createAppointment = async (patientId, appointmentData) => {
       patient_name: appointmentData.patientName,
       patient_email: appointmentData.patientEmail,
       patient_phone: appointmentData.patientPhone,
-      date: appointmentData.appointmentDate,
+      appointment_date: appointmentData.appointmentDate,
       start_time: appointmentData.appointmentTime,
-      visit_type: appointmentData.visitType || 'online', // 'online' or 'physical'
+      end_time: (() => {
+        const [hours, mins] = appointmentData.appointmentTime.split(':').map(Number);
+        const endMins = mins + 30;
+        const endHours = hours + Math.floor(endMins / 60);
+        return `${String(endHours).padStart(2, '0')}:${String(endMins % 60).padStart(2, '0')}`;
+      })(),
+      visit_type: appointmentData.visitType || 'online',
       status: 'pending',
-      reason: appointmentData.reasonForVisit,
-      symptoms: appointmentData.symptoms,
       amount: appointmentData.consultationFee,
       payment_status: 'pending'
     })
@@ -567,8 +572,8 @@ export const createAppointment = async (patientId, appointmentData) => {
       doctor:doctor_id (
         full_name,
         specialization,
-        clinic_address,
-        meeting_link
+        clinic_name,
+        clinic_address
       )
     `)
     .single();
@@ -578,13 +583,11 @@ export const createAppointment = async (patientId, appointmentData) => {
 };
 
 export const confirmPayment = async (appointmentId, paymentData) => {
+  // Only update columns that exist in doc_appointments table
   const { data, error } = await supabase
     .from('doc_appointments')
     .update({
       payment_status: 'paid',
-      payment_id: paymentData.paymentId || `DUMMY-${Date.now()}`,
-      payment_method: paymentData.paymentMethod || 'card',
-      paid_at: new Date().toISOString(),
       status: 'confirmed'
     })
     .eq('id', appointmentId)
@@ -604,8 +607,8 @@ export const getAppointments = async (patientId, status = null) => {
         id,
         full_name,
         specialization,
+        clinic_name,
         clinic_address,
-        meeting_link,
         consultation_fee
       )
     `)
@@ -615,7 +618,7 @@ export const getAppointments = async (patientId, status = null) => {
     query = query.eq('status', status);
   }
 
-  const { data, error } = await query.order('date', { ascending: false });
+  const { data, error } = await query.order('appointment_date', { ascending: false });
 
   if (error) throw error;
   return data || [];
@@ -632,14 +635,14 @@ export const getUpcomingAppointments = async (patientId) => {
         id,
         full_name,
         specialization,
-        clinic_address,
-        meeting_link
+        clinic_name,
+        clinic_address
       )
     `)
     .eq('doc_patient_id', patientId)
-    .gte('date', today)
+    .gte('appointment_date', today)
     .in('status', ['pending', 'confirmed'])
-    .order('date', { ascending: true })
+    .order('appointment_date', { ascending: true })
     .order('start_time', { ascending: true });
 
   if (error) throw error;
@@ -749,15 +752,10 @@ export const deleteDocument = async (documentId, filePath) => {
 export const searchDoctors = async (filters = {}) => {
   let query = supabase
     .from('doc_doctors')
-    .select('*')
-    .eq('is_active', true);
+    .select('*');
 
   if (filters.specialization) {
     query = query.ilike('specialization', `%${filters.specialization}%`);
-  }
-
-  if (filters.minRating) {
-    query = query.gte('rating', filters.minRating);
   }
 
   if (filters.maxFee) {
@@ -768,7 +766,7 @@ export const searchDoctors = async (filters = {}) => {
     query = query.eq('is_verified', true);
   }
 
-  const { data, error } = await query.order('rating', { ascending: false });
+  const { data, error } = await query.order('full_name', { ascending: true });
 
   if (error) throw error;
   return data || [];
@@ -786,13 +784,15 @@ export const getDoctorById = async (doctorId) => {
 };
 
 export const getDoctorAvailability = async (doctorId, date) => {
+  // doc_availability uses day_of_week (0-6, Sunday-Saturday) for recurring slots
+  const dayOfWeek = new Date(date).getDay();
+
   const { data, error } = await supabase
     .from('doc_availability')
     .select('*')
     .eq('doctor_id', doctorId)
-    .eq('date', date)
-    .eq('is_available', true)
-    .eq('is_booked', false)
+    .eq('day_of_week', dayOfWeek)
+    .eq('is_active', true)
     .order('start_time', { ascending: true });
 
   if (error) throw error;

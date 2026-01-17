@@ -15,14 +15,18 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [roleLoading, setRoleLoading] = useState(false);
   const [userRole, setUserRole] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
 
-  // Fetch user profile and role from database
-  const fetchUserProfile = async (userId) => {
+  // Fetch user profile and role from database with minimal retry logic
+  const fetchUserProfile = async (userId, retryCount = 0) => {
+    const maxRetries = 1; // Reduced from 3 to prevent long waits
+    setRoleLoading(true);
+
     try {
       let data, error;
-      
+
       // Try with admin client first for better permissions
       try {
         const adminClient = getAdminClient();
@@ -33,7 +37,7 @@ export const AuthProvider = ({ children }) => {
           .single();
         data = result.data;
         error = result.error;
-        
+
         if (!data && !error) {
           // Try with id field if auth_user_id doesn't work
           const idResult = await adminClient
@@ -46,7 +50,7 @@ export const AuthProvider = ({ children }) => {
         }
       } catch (adminError) {
         console.log('Admin client failed, trying regular client:', adminError.message);
-        
+
         // Fallback to regular client
         const result = await supabase
           .from('users')
@@ -60,7 +64,7 @@ export const AuthProvider = ({ children }) => {
       if (error) {
         if (error.code === '42P17') {
           console.log('RLS policy issue detected. Using email-based lookup...');
-          
+
           // Try to get user by email from auth
           const { data: { user } } = await supabase.auth.getUser();
           if (user?.email) {
@@ -77,41 +81,69 @@ export const AuthProvider = ({ children }) => {
             }
           }
         }
-        
+
         if (error && error.code !== 'PGRST116') {
           throw error;
         }
       }
-      
+
       if (data) {
-        setUserRole(data.role || 'user');
+        // Successfully found user profile - use the actual role from database
+        const actualRole = data.role || 'patient';
+        setUserRole(actualRole);
         setUserProfile(data);
-        console.log('✅ User profile loaded:', data.email, 'Role:', data.role);
+        console.log('User profile loaded:', data.email, 'Role:', actualRole);
+        setRoleLoading(false);
+        return { success: true, role: actualRole };
       } else {
-        console.log('❌ No user profile found, setting default user role');
-        setUserRole('user'); // Default to user, not admin
-        setUserProfile({ id: userId, role: 'user' });
+        // No profile found - retry once before defaulting
+        if (retryCount < maxRetries) {
+          console.log(`No profile found, retrying... (${retryCount + 1}/${maxRetries})`);
+          await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay
+          return fetchUserProfile(userId, retryCount + 1);
+        }
+
+        // After retries, default to patient (new user)
+        console.log('No user profile found after retries, defaulting to patient role');
+        setUserRole('patient');
+        setUserProfile({ id: userId, role: 'patient' });
+        setRoleLoading(false);
+        return { success: false, role: 'patient' };
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
-      setUserRole('user'); // Default to user, not admin
-      setUserProfile({ id: userId, role: 'user' });
+
+      // Retry on error
+      if (retryCount < maxRetries) {
+        console.log(`Error occurred, retrying... (${retryCount + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, 200)); // Reduced delay
+        return fetchUserProfile(userId, retryCount + 1);
+      }
+
+      // After retries, default to patient
+      setUserRole('patient');
+      setUserProfile({ id: userId, role: 'patient' });
+      setRoleLoading(false);
+      return { success: false, role: 'patient' };
     }
   };
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
+        setRoleLoading(true);
+        // Don't await - let profile fetch happen in background so login resolves immediately
         fetchUserProfile(session.user.id);
       } else {
         setUserRole(null);
         setUserProfile(null);
+        setRoleLoading(false);
       }
-      
+
       setLoading(false);
     });
 
@@ -121,14 +153,17 @@ export const AuthProvider = ({ children }) => {
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      
+
       if (session?.user) {
+        setRoleLoading(true);
+        // Don't await - let profile fetch happen in background so signInWithPassword resolves immediately
         fetchUserProfile(session.user.id);
       } else {
         setUserRole(null);
         setUserProfile(null);
+        setRoleLoading(false);
       }
-      
+
       setLoading(false);
     });
 
@@ -186,6 +221,7 @@ export const AuthProvider = ({ children }) => {
     user,
     session,
     loading,
+    roleLoading,
     userRole,
     userProfile,
     signIn,

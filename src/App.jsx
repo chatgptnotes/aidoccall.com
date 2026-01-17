@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import LandingPage from './pages/LandingPage';
 import EmergencyLocation from './pages/EmergencyLocation';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
@@ -20,32 +21,43 @@ import PatientPortal from './pages/patient/PatientPortal';
 
 // Role-based Dashboard Component
 const RoleDashboard = () => {
-  const { userRole, userProfile, loading } = useAuth();
-  
-  if (loading) {
+  const { userRole, userProfile, loading, roleLoading } = useAuth();
+
+  // Show loading while auth or role is being determined
+  if (loading || roleLoading) {
     return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Loading your dashboard...</p>
+      </div>
     </div>;
   }
-  
+
   // Get role from userRole or userProfile with debugging
   const role = userRole || userProfile?.role;
-  console.log('🔍 Role Detection - userRole:', userRole, 'userProfile.role:', userProfile?.role, 'final role:', role);
-  
+  console.log('RoleDashboard - userRole:', userRole, 'userProfile.role:', userProfile?.role, 'final role:', role);
+
   // Route to appropriate dashboard based on role
-  if (role === 'telecaller') {
+  // IMPORTANT: Check admin FIRST to prevent admin users from being routed to patient portal
+  if (role === 'admin') {
+    console.log('Routing to AdminDashboard');
+    return <Dashboard />;
+  } else if (role === 'telecaller') {
     console.log('Routing to TelecallerDashboard');
     return <TelecallerDashboard />;
   } else if (role === 'patient' || role === 'user') {
     console.log('Routing to PatientPortal');
     return <PatientPortal />;
-  } else if (role === 'admin') {
-    console.log('Routing to AdminDashboard');
-    return <Dashboard />;
   } else {
-    // If no role detected, show role selection or default to patient portal
-    console.log('No role detected, defaulting to PatientPortal. userRole:', userRole, 'userProfile:', userProfile);
-    return <PatientPortal />;
+    // If no role detected yet (null/undefined), show loading instead of defaulting
+    // This prevents premature routing before role fetch completes
+    console.log('No role detected yet, showing loading. userRole:', userRole, 'userProfile:', userProfile);
+    return <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+        <p className="mt-4 text-gray-600">Determining your role...</p>
+      </div>
+    </div>;
   }
 };
 
@@ -53,7 +65,8 @@ const App = () => {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<EmergencyLocation />} />
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/emergency" element={<EmergencyLocation />} />
         <Route path="/login" element={<Login />} />
         <Route
           path="/dashboard"

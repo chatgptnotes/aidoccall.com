@@ -26,10 +26,9 @@ const PatientDashboard = () => {
   const fetchNearbyDoctors = async () => {
     try {
       const { data, error } = await supabase
-        .from('doctors')
+        .from('doc_doctors')
         .select('*')
-        .eq('status', 'active')
-        .order('rating', { ascending: false });
+        .order('full_name', { ascending: true });
 
       if (error) throw error;
       setNearbyDoctors(data || []);
@@ -41,41 +40,37 @@ const PatientDashboard = () => {
           id: '1',
           full_name: 'Dr. Amit Kumar',
           specialization: 'Cardiology',
-          hospital_affiliation: 'AIIMS Delhi',
-          rating: 4.8,
+          clinic_name: 'AIIMS Delhi',
+          experience_years: 12,
           consultation_fee: 500,
-          is_verified_green_flag: true,
-          status: 'active'
+          is_verified: true
         },
         {
           id: '2',
           full_name: 'Dr. Priya Sharma',
           specialization: 'Pediatrics',
-          hospital_affiliation: 'Apollo Hospital',
-          rating: 4.9,
+          clinic_name: 'Apollo Hospital',
+          experience_years: 8,
           consultation_fee: 400,
-          is_verified_green_flag: true,
-          status: 'active'
+          is_verified: true
         },
         {
           id: '3',
           full_name: 'Dr. Karan Malhotra',
           specialization: 'General Medicine',
-          hospital_affiliation: 'Fortis Hospital',
-          rating: 4.7,
+          clinic_name: 'Fortis Hospital',
+          experience_years: 15,
           consultation_fee: 350,
-          is_verified_green_flag: true,
-          status: 'active'
+          is_verified: true
         },
         {
           id: '4',
           full_name: 'Dr. Neha Agarwal',
           specialization: 'Dermatology',
-          hospital_affiliation: 'Max Hospital',
-          rating: 4.6,
+          clinic_name: 'Max Hospital',
+          experience_years: 6,
           consultation_fee: 450,
-          is_verified_green_flag: true,
-          status: 'active'
+          is_verified: true
         }
       ]);
     }
@@ -210,10 +205,11 @@ const PatientDashboard = () => {
   };
 
   const filteredDoctors = nearbyDoctors.filter(doctor => {
+    const locationField = (doctor.clinic_name || doctor.clinic_address || '').toLowerCase();
     return (
-      (!searchFilters.specialization || doctor.specialization.toLowerCase().includes(searchFilters.specialization.toLowerCase())) &&
-      (!searchFilters.location || doctor.hospital_affiliation.toLowerCase().includes(searchFilters.location.toLowerCase())) &&
-      (!searchFilters.priceRange || 
+      (!searchFilters.specialization || (doctor.specialization || '').toLowerCase().includes(searchFilters.specialization.toLowerCase())) &&
+      (!searchFilters.location || locationField.includes(searchFilters.location.toLowerCase())) &&
+      (!searchFilters.priceRange ||
         (searchFilters.priceRange === 'low' && doctor.consultation_fee < 400) ||
         (searchFilters.priceRange === 'medium' && doctor.consultation_fee >= 400 && doctor.consultation_fee < 600) ||
         (searchFilters.priceRange === 'high' && doctor.consultation_fee >= 600)
@@ -356,24 +352,24 @@ const PatientDashboard = () => {
                       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
                         <span className="text-blue-600 font-bold text-lg">Dr</span>
                       </div>
-                      {doctor.is_verified_green_flag && (
+                      {doctor.is_verified && (
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs font-medium">
-                          ✅ Verified
+                          Verified
                         </span>
                       )}
                     </div>
-                    
+
                     <h3 className="font-bold text-gray-800 text-lg mb-1">{doctor.full_name}</h3>
                     <p className="text-blue-600 font-medium text-sm mb-1">{doctor.specialization}</p>
-                    <p className="text-gray-600 text-sm mb-3">{doctor.hospital_affiliation}</p>
-                    
+                    <p className="text-gray-600 text-sm mb-3">{doctor.clinic_name || doctor.clinic_address || 'Available for consultation'}</p>
+
                     <div className="flex items-center justify-between mb-4">
                       <div className="flex items-center gap-1">
-                        <span className="text-yellow-500">⭐</span>
-                        <span className="font-medium">{doctor.rating}</span>
+                        <span className="material-icons text-blue-500 text-sm">work_history</span>
+                        <span className="font-medium">{doctor.experience_years || 0} yrs exp</span>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-lg">₹{doctor.consultation_fee}</p>
+                        <p className="font-bold text-lg">₹{doctor.consultation_fee || doctor.online_fee || 0}</p>
                         <p className="text-xs text-gray-500">per consultation</p>
                       </div>
                     </div>
@@ -519,7 +515,7 @@ const PatientDashboard = () => {
 
         {/* Footer */}
         <div className="mt-8 text-center text-sm text-gray-500">
-          <p>AidocCall Patient Portal v1.1 - 2025-12-31</p>
+          <p>v1.2 - 2026-01-17</p>
         </div>
       </div>
     </div>
