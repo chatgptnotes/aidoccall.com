@@ -8,16 +8,22 @@ import { supabase } from '../lib/supabaseClient';
 // ============================================
 
 export const createPatientProfile = async (authUserId, profileData) => {
+  // Split fullName into first_name and last_name
+  const nameParts = (profileData.fullName || '').trim().split(' ');
+  const firstName = nameParts[0] || '';
+  const lastName = nameParts.slice(1).join(' ') || '';
+
   const { data, error } = await supabase
     .from('doc_patients')
     .insert({
-      auth_user_id: authUserId,
+      user_id: authUserId,  // Changed from auth_user_id to user_id
       email: profileData.email,
-      full_name: profileData.fullName,
-      phone: profileData.phone,
+      first_name: firstName,  // Changed from full_name
+      last_name: lastName,    // Added last_name
+      phone_number: profileData.phone,  // Changed from phone to phone_number
       date_of_birth: profileData.dateOfBirth,
       gender: profileData.gender,
-      blood_group: profileData.bloodGroup || 'unknown',
+      // blood_group removed - collected at Step 5, not Step 1
       height_cm: profileData.heightCm,
       weight_kg: profileData.weightKg,
       registration_step: 1,
@@ -34,7 +40,7 @@ export const getPatientProfile = async (authUserId) => {
   const { data, error } = await supabase
     .from('doc_patients')
     .select('*')
-    .eq('auth_user_id', authUserId)
+    .eq('user_id', authUserId)  // Changed from auth_user_id to user_id
     .single();
 
   if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows found
@@ -42,19 +48,34 @@ export const getPatientProfile = async (authUserId) => {
 };
 
 export const updatePatientProfile = async (patientId, profileData) => {
+  // Split fullName into first_name and last_name if provided
+  let firstName, lastName;
+  if (profileData.fullName) {
+    const nameParts = profileData.fullName.trim().split(' ');
+    firstName = nameParts[0] || '';
+    lastName = nameParts.slice(1).join(' ') || '';
+  }
+
+  const updateData = {
+    phone_number: profileData.phone,  // Changed from phone to phone_number
+    date_of_birth: profileData.dateOfBirth,
+    gender: profileData.gender,
+    blood_group: profileData.bloodGroup,
+    height_cm: profileData.heightCm,
+    weight_kg: profileData.weightKg,
+    profile_image_url: profileData.profilePhotoUrl,
+    updated_at: new Date().toISOString()
+  };
+
+  // Only update name fields if fullName was provided
+  if (firstName !== undefined) {
+    updateData.first_name = firstName;
+    updateData.last_name = lastName;
+  }
+
   const { data, error } = await supabase
     .from('doc_patients')
-    .update({
-      full_name: profileData.fullName,
-      phone: profileData.phone,
-      date_of_birth: profileData.dateOfBirth,
-      gender: profileData.gender,
-      blood_group: profileData.bloodGroup,
-      height_cm: profileData.heightCm,
-      weight_kg: profileData.weightKg,
-      profile_photo_url: profileData.profilePhotoUrl,
-      updated_at: new Date().toISOString()
-    })
+    .update(updateData)
     .eq('id', patientId)
     .select()
     .single();
@@ -97,15 +118,13 @@ export const addPatientAddress = async (patientId, addressData) => {
     .insert({
       patient_id: patientId,
       address_type: addressData.addressType || 'home',
-      street_address: addressData.streetAddress,
-      apartment_unit: addressData.apartmentUnit,
+      address_line_1: addressData.streetAddress,
+      address_line_2: addressData.apartmentUnit || null,
       city: addressData.city,
       state: addressData.state,
       postal_code: addressData.postalCode,
       country: addressData.country || 'India',
-      is_primary: addressData.isPrimary || false,
-      latitude: addressData.latitude,
-      longitude: addressData.longitude
+      is_primary: addressData.isPrimary !== false
     })
     .select()
     .single();
@@ -130,13 +149,12 @@ export const updatePatientAddress = async (addressId, addressData) => {
     .from('doc_patient_addresses')
     .update({
       address_type: addressData.addressType,
-      street_address: addressData.streetAddress,
-      apartment_unit: addressData.apartmentUnit,
+      address_line_1: addressData.streetAddress,
+      address_line_2: addressData.apartmentUnit || null,
       city: addressData.city,
       state: addressData.state,
       postal_code: addressData.postalCode,
-      is_primary: addressData.isPrimary,
-      updated_at: new Date().toISOString()
+      is_primary: addressData.isPrimary
     })
     .eq('id', addressId)
     .select()
@@ -174,9 +192,9 @@ export const addEmergencyContact = async (patientId, contactData) => {
       patient_id: patientId,
       contact_name: contactData.contactName,
       relationship: contactData.relationship,
-      phone: contactData.phone,
+      phone_number: contactData.phone,
       email: contactData.email,
-      is_primary: contactData.isPrimary || false
+      is_primary: contactData.isPrimary !== false
     })
     .select()
     .single();
@@ -202,10 +220,9 @@ export const updateEmergencyContact = async (contactId, contactData) => {
     .update({
       contact_name: contactData.contactName,
       relationship: contactData.relationship,
-      phone: contactData.phone,
+      phone_number: contactData.phone,
       email: contactData.email,
-      is_primary: contactData.isPrimary,
-      updated_at: new Date().toISOString()
+      is_primary: contactData.isPrimary
     })
     .eq('id', contactId)
     .select()
@@ -235,10 +252,10 @@ export const addMedicalCondition = async (patientId, conditionData) => {
     .insert({
       patient_id: patientId,
       condition_name: conditionData.conditionName,
-      condition_type: conditionData.conditionType || 'current',
-      diagnosed_date: conditionData.diagnosedDate,
-      notes: conditionData.notes,
-      is_active: conditionData.isActive !== false
+      condition_type: conditionData.conditionType || 'chronic',
+      diagnosed_date: conditionData.diagnosedDate || null,
+      notes: conditionData.notes || null,
+      is_current: conditionData.isCurrent !== false
     })
     .select()
     .single();
@@ -266,8 +283,7 @@ export const updateMedicalCondition = async (conditionId, conditionData) => {
       condition_type: conditionData.conditionType,
       diagnosed_date: conditionData.diagnosedDate,
       notes: conditionData.notes,
-      is_active: conditionData.isActive,
-      updated_at: new Date().toISOString()
+      is_current: conditionData.isCurrent
     })
     .eq('id', conditionId)
     .select()
@@ -298,10 +314,8 @@ export const addAllergy = async (patientId, allergyData) => {
       patient_id: patientId,
       allergy_name: allergyData.allergyName,
       allergy_type: allergyData.allergyType || 'other',
-      severity: allergyData.severity || 'mild',
-      reaction_description: allergyData.reactionDescription,
-      diagnosed_date: allergyData.diagnosedDate,
-      is_active: true
+      severity: allergyData.severity || null,
+      reaction_description: allergyData.reactionDescription || null
     })
     .select()
     .single();
@@ -314,9 +328,7 @@ export const getAllergies = async (patientId) => {
   const { data, error } = await supabase
     .from('doc_patient_allergies')
     .select('*')
-    .eq('patient_id', patientId)
-    .eq('is_active', true)
-    .order('severity', { ascending: false });
+    .eq('patient_id', patientId);
 
   if (error) throw error;
   return data || [];
@@ -329,9 +341,7 @@ export const updateAllergy = async (allergyId, allergyData) => {
       allergy_name: allergyData.allergyName,
       allergy_type: allergyData.allergyType,
       severity: allergyData.severity,
-      reaction_description: allergyData.reactionDescription,
-      is_active: allergyData.isActive,
-      updated_at: new Date().toISOString()
+      reaction_description: allergyData.reactionDescription
     })
     .eq('id', allergyId)
     .select()
@@ -674,7 +684,9 @@ export const cancelAppointment = async (appointmentId, reason) => {
 
 export const uploadDocument = async (patientId, file, documentData) => {
   // Upload file to Supabase Storage (patient-documents bucket)
-  const fileName = `${patientId}/${Date.now()}_${file.name}`;
+  // Sanitize file name - replace spaces and special chars
+  const sanitizedName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+  const fileName = `${patientId}/${Date.now()}_${sanitizedName}`;
 
   const { data: uploadData, error: uploadError } = await supabase.storage
     .from('patient-documents')
@@ -687,14 +699,13 @@ export const uploadDocument = async (patientId, file, documentData) => {
     .from('doc_patient_reports')
     .insert({
       doc_patient_id: patientId,
-      doctor_id: documentData.doctorId, // Link to specific doctor
+      doctor_id: documentData.doctorId,
       appointment_id: documentData.appointmentId,
-      report_type: documentData.documentType,
+      file_type: documentData.documentType,
       file_name: file.name,
       file_url: uploadData.path,
-      file_size: file.size,
-      notes: documentData.description,
-      uploaded_by: 'patient'
+      uploaded_by: 'patient',
+      description: documentData.description || null
     })
     .select()
     .single();
@@ -710,7 +721,7 @@ export const getDocuments = async (patientId, documentType = null) => {
     .eq('doc_patient_id', patientId);
 
   if (documentType) {
-    query = query.eq('report_type', documentType);
+    query = query.eq('file_type', documentType);
   }
 
   const { data, error } = await query.order('created_at', { ascending: false });

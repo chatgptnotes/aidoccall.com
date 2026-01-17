@@ -9,6 +9,7 @@ import {
   addAllergy,
   updateRegistrationStep
 } from '../../services/patientService';
+import { sendRegistrationSuccessMessage } from '../../services/whatsappService';
 
 const STEPS = [
   { id: 1, title: 'Account', description: 'Create your account' },
@@ -70,7 +71,7 @@ const PatientRegister = () => {
 
   // Step 5: Medical (optional)
   const [medicalData, setMedicalData] = useState({
-    bloodGroup: 'unknown',
+    bloodGroup: '',
     heightCm: '',
     weightKg: '',
     conditions: [],
@@ -189,7 +190,23 @@ const PatientRegister = () => {
       }
 
       if (currentStep === 2 && patientId) {
-        await updateRegistrationStep(patientId, 2);
+        // Update patient profile with personal data (name, phone, dob, gender)
+        // Split fullName into first_name and last_name
+        const nameParts = (personalData.fullName || '').trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        await supabase
+          .from('doc_patients')
+          .update({
+            first_name: firstName,
+            last_name: lastName,
+            phone_number: personalData.phone,
+            date_of_birth: personalData.dateOfBirth || null,
+            gender: personalData.gender || null,
+            registration_step: 2
+          })
+          .eq('id', patientId);
       }
 
       if (currentStep === 3 && patientId) {
@@ -217,7 +234,7 @@ const PatientRegister = () => {
         await supabase
           .from('doc_patients')
           .update({
-            blood_group: bloodGroup,
+            blood_group: bloodGroup || null,
             height_cm: heightCm || null,
             weight_kg: weightKg || null,
             registration_completed: true,
@@ -229,7 +246,7 @@ const PatientRegister = () => {
         for (const condition of conditions) {
           await addMedicalCondition(patientId, {
             conditionName: condition,
-            conditionType: 'current'
+            conditionType: 'ongoing'
           });
         }
 
@@ -240,6 +257,20 @@ const PatientRegister = () => {
             allergyType: 'drug',
             severity: 'moderate'
           });
+        }
+
+        // Send WhatsApp registration success message
+        if (personalData.phone) {
+          try {
+            await sendRegistrationSuccessMessage(
+              personalData.fullName || 'Patient',
+              personalData.phone
+            );
+            console.log('WhatsApp registration message sent');
+          } catch (whatsappError) {
+            console.error('WhatsApp notification failed:', whatsappError);
+            // Don't block registration if WhatsApp fails
+          }
         }
 
         // Registration complete - navigate to dashboard
@@ -273,6 +304,19 @@ const PatientRegister = () => {
             registration_step: 5
           })
           .eq('id', patientId);
+
+        // Send WhatsApp registration success message
+        if (personalData.phone) {
+          try {
+            await sendRegistrationSuccessMessage(
+              personalData.fullName || 'Patient',
+              personalData.phone
+            );
+            console.log('WhatsApp registration message sent');
+          } catch (whatsappError) {
+            console.error('WhatsApp notification failed:', whatsappError);
+          }
+        }
 
         navigate('/dashboard');
       } catch (err) {
@@ -401,8 +445,7 @@ const PatientRegister = () => {
                 <option value="">Select gender</option>
                 <option value="male">Male</option>
                 <option value="female">Female</option>
-                <option value="other">Other</option>
-                <option value="prefer_not_to_say">Prefer not to say</option>
+                <option value="other">Other / Prefer not to say</option>
               </select>
             </div>
           </div>
@@ -505,12 +548,12 @@ const PatientRegister = () => {
                 className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select relationship</option>
-                <option value="Spouse">Spouse</option>
-                <option value="Parent">Parent</option>
-                <option value="Sibling">Sibling</option>
-                <option value="Child">Child</option>
-                <option value="Friend">Friend</option>
-                <option value="Other">Other</option>
+                <option value="spouse">Spouse</option>
+                <option value="parent">Parent</option>
+                <option value="sibling">Sibling</option>
+                <option value="child">Child</option>
+                <option value="friend">Friend</option>
+                <option value="other">Other</option>
               </select>
             </div>
             <div>
@@ -555,7 +598,7 @@ const PatientRegister = () => {
                   onChange={(e) => setMedicalData({ ...medicalData, bloodGroup: e.target.value })}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="unknown">Unknown</option>
+                  <option value="">Select blood group</option>
                   <option value="A+">A+</option>
                   <option value="A-">A-</option>
                   <option value="B+">B+</option>

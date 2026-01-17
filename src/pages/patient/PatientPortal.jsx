@@ -22,9 +22,12 @@ import {
   selectDoctor,
   createAppointment,
   confirmPayment,
-  getDoctorAvailability
+  getDoctorAvailability,
+  uploadDocument,
+  getDocumentUrl
 } from '../../services/patientService';
 import { supabase } from '../../lib/supabaseClient';
+import { sendAppointmentConfirmation } from '../../services/whatsappService';
 
 const PatientPortal = () => {
   const navigate = useNavigate();
@@ -71,6 +74,16 @@ const PatientPortal = () => {
   const [newCondition, setNewCondition] = useState({ conditionName: '', conditionType: 'current', notes: '' });
   const [newAllergy, setNewAllergy] = useState({ allergyName: '', allergyType: 'drug', severity: 'moderate' });
   const [newMedication, setNewMedication] = useState({ medicationName: '', dosage: '', frequency: '' });
+
+  // Doctor detail modal with document upload
+  const [showDoctorDetailModal, setShowDoctorDetailModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState(null);
+  const [doctorDocuments, setDoctorDocuments] = useState([]);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documentUploadData, setDocumentUploadData] = useState({
+    documentType: 'lab_report',
+    description: ''
+  });
 
   useEffect(() => {
     loadPatientData();
@@ -229,9 +242,9 @@ const PatientPortal = () => {
 
       const appointment = await createAppointment(patientData.id, {
         doctorId: selectedDoctor.id,
-        patientName: patientData.full_name,
+        patientName: `${patientData.first_name || ''} ${patientData.last_name || ''}`.trim(),
         patientEmail: patientData.email,
-        patientPhone: patientData.phone,
+        patientPhone: patientData.phone_number,
         appointmentDate: bookingData.date,
         appointmentTime: bookingData.time,
         visitType: bookingData.visitType,
@@ -266,6 +279,36 @@ const PatientPortal = () => {
       setBookingStep(4); // Go to confirmation step
       loadAppointments();
       loadPatientData();
+
+      // Send WhatsApp appointment confirmation
+      if (patientData?.phone_number && selectedDoctor) {
+        try {
+          const patientName = `${patientData.first_name || ''} ${patientData.last_name || ''}`.trim() || 'Patient';
+          const doctorName = `Dr. ${selectedDoctor.name || selectedDoctor.full_name || 'Doctor'}`;
+          const appointmentDate = new Date(bookingData.date).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+          const location = bookingData.visitType === 'online' ? 'Online Consultation' : (selectedDoctor.clinic_address || 'Clinic');
+          const meetingLink = bookingData.visitType === 'online' ? 'Link will be shared before appointment' : 'N/A';
+
+          await sendAppointmentConfirmation(
+            patientName,
+            patientData.phone_number,
+            doctorName,
+            appointmentDate,
+            bookingData.time,
+            location,
+            meetingLink,
+            '+918856945017'
+          );
+          console.log('WhatsApp appointment confirmation sent');
+        } catch (whatsappError) {
+          console.error('WhatsApp notification failed:', whatsappError);
+          // Don't block appointment if WhatsApp fails
+        }
+      }
     } catch (error) {
       console.error('Error processing payment:', error);
       alert('Payment failed. Please try again.');
@@ -291,6 +334,56 @@ const PatientPortal = () => {
       loadPatientData();
     } catch (error) {
       console.error('Error cancelling appointment:', error);
+    }
+  };
+
+  // Doctor Detail Modal Functions
+  const openDoctorDetailModal = async (appointment) => {
+    setSelectedAppointment(appointment);
+    setShowDoctorDetailModal(true);
+    // Load documents for this doctor
+    await loadDoctorDocuments(appointment.doctor_id);
+  };
+
+  const closeDoctorDetailModal = () => {
+    setShowDoctorDetailModal(false);
+    setSelectedAppointment(null);
+    setDoctorDocuments([]);
+    setDocumentUploadData({ documentType: 'lab_report', description: '' });
+  };
+
+  const loadDoctorDocuments = async (doctorId) => {
+    try {
+      const docs = await getDocuments(patientData.id);
+      // Filter documents for this specific doctor
+      const doctorDocs = docs.filter(doc => doc.doctor_id === doctorId);
+      setDoctorDocuments(doctorDocs);
+    } catch (error) {
+      console.error('Error loading documents:', error);
+    }
+  };
+
+  const handleDocumentUpload = async (e) => {
+    const file = e.target.files[0];
+    if (!file || !selectedAppointment) return;
+
+    setUploadingDocument(true);
+    try {
+      await uploadDocument(patientData.id, file, {
+        doctorId: selectedAppointment.doctor_id,
+        appointmentId: selectedAppointment.id,
+        documentType: documentUploadData.documentType,
+        description: documentUploadData.description
+      });
+      alert('Document uploaded successfully!');
+      // Reload documents
+      await loadDoctorDocuments(selectedAppointment.doctor_id);
+      setDocumentUploadData({ documentType: 'lab_report', description: '' });
+    } catch (error) {
+      console.error('Error uploading document:', error);
+      alert('Failed to upload document. Please try again.');
+    } finally {
+      setUploadingDocument(false);
     }
   };
 
@@ -409,7 +502,7 @@ const PatientPortal = () => {
             </div>
             <div className="flex items-center gap-4">
               <div className="text-right">
-                <p className="font-medium text-gray-800">{patientData?.full_name}</p>
+                <p className="font-medium text-gray-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim()}</p>
                 <p className="text-sm text-gray-500">ID: PT-{patientData?.id?.slice(-6).toUpperCase()}</p>
               </div>
               <button
@@ -458,7 +551,7 @@ const PatientPortal = () => {
           <div className="space-y-6">
             {/* Welcome Card */}
             <div className="bg-gradient-to-r from-blue-600 to-green-600 rounded-2xl p-6 text-white">
-              <h2 className="text-2xl font-bold mb-2">Welcome back, {patientData?.full_name?.split(' ')[0]}!</h2>
+              <h2 className="text-2xl font-bold mb-2">Welcome back, {patientData?.first_name || 'Patient'}!</h2>
               <p className="opacity-90">Your health dashboard is ready. Book appointments, manage records, and stay healthy.</p>
             </div>
 
@@ -524,13 +617,16 @@ const PatientPortal = () => {
               ) : (
                 <div className="space-y-3">
                   {upcomingAppointments.slice(0, 3).map((apt) => (
-                    <div key={apt.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                      <div className="flex items-center gap-4">
+                    <div key={apt.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition">
+                      <div
+                        className="flex items-center gap-4 cursor-pointer flex-1"
+                        onClick={() => openDoctorDetailModal(apt)}
+                      >
                         <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
                           <span className="material-icons text-blue-600">person</span>
                         </div>
                         <div>
-                          <p className="font-medium text-gray-800">{apt.doctor?.full_name}</p>
+                          <p className="font-medium text-gray-800 hover:text-blue-600">{apt.doctor?.full_name}</p>
                           <p className="text-sm text-gray-500">{apt.doctor?.specialization}</p>
                         </div>
                       </div>
@@ -947,7 +1043,7 @@ const PatientPortal = () => {
                 <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="material-icons text-blue-600 text-5xl">person</span>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800">{patientData?.full_name}</h2>
+                <h2 className="text-2xl font-bold text-gray-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim()}</h2>
                 <p className="text-gray-500">Patient ID: PT-{patientData?.id?.slice(-6).toUpperCase()}</p>
               </div>
 
@@ -959,7 +1055,7 @@ const PatientPortal = () => {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-500 mb-1">Phone</label>
-                    <p className="text-gray-800">{patientData?.phone || 'Not provided'}</p>
+                    <p className="text-gray-800">{patientData?.phone_number || 'Not provided'}</p>
                   </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
@@ -1559,9 +1655,155 @@ const PatientPortal = () => {
         </div>
       )}
 
+      {/* Doctor Detail Modal with Document Upload */}
+      {showDoctorDetailModal && selectedAppointment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white p-6 border-b border-gray-100 rounded-t-2xl">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-bold text-gray-800">Doctor Details</h3>
+                <button onClick={closeDoctorDetailModal} className="text-gray-400 hover:text-gray-600">
+                  <span className="material-icons">close</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Doctor Info */}
+            <div className="p-6 border-b border-gray-100">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
+                  <span className="material-icons text-3xl text-blue-600">person</span>
+                </div>
+                <div>
+                  <h4 className="text-lg font-bold text-gray-800">{selectedAppointment.doctor?.full_name}</h4>
+                  <p className="text-gray-500">{selectedAppointment.doctor?.specialization}</p>
+                  <p className="text-sm text-gray-400">{selectedAppointment.doctor?.clinic_name}</p>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-4 text-sm">
+                <div className="bg-blue-50 px-3 py-2 rounded-lg">
+                  <span className="text-gray-500">Appointment: </span>
+                  <span className="font-medium">{new Date(selectedAppointment.appointment_date).toLocaleDateString()}</span>
+                </div>
+                <div className="bg-green-50 px-3 py-2 rounded-lg">
+                  <span className="text-gray-500">Status: </span>
+                  <span className="font-medium capitalize">{selectedAppointment.status}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Upload Document Section */}
+            <div className="p-6 border-b border-gray-100">
+              <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="material-icons text-blue-600">upload_file</span>
+                Upload Document for Doctor
+              </h4>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Document Type</label>
+                  <select
+                    value={documentUploadData.documentType}
+                    onChange={(e) => setDocumentUploadData({ ...documentUploadData, documentType: e.target.value })}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="lab_report">Lab Report</option>
+                    <option value="prescription">Prescription</option>
+                    <option value="scan">Scan / X-Ray</option>
+                    <option value="medical_certificate">Medical Certificate</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Description (Optional)</label>
+                  <textarea
+                    value={documentUploadData.description}
+                    onChange={(e) => setDocumentUploadData({ ...documentUploadData, description: e.target.value })}
+                    placeholder="Brief description of the document..."
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    rows={2}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Select File</label>
+                  <input
+                    type="file"
+                    onChange={handleDocumentUpload}
+                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    disabled={uploadingDocument}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                  />
+                  {uploadingDocument && (
+                    <p className="text-sm text-blue-600 mt-2 flex items-center gap-2">
+                      <span className="material-icons animate-spin">refresh</span>
+                      Uploading...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Uploaded Documents List */}
+            <div className="p-6">
+              <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="material-icons text-purple-600">folder</span>
+                Documents Shared with This Doctor ({doctorDocuments.length})
+              </h4>
+              {doctorDocuments.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <span className="material-icons text-4xl mb-2">folder_open</span>
+                  <p>No documents uploaded yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {doctorDocuments.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="material-icons text-gray-400">description</span>
+                        <div>
+                          <p className="font-medium text-gray-800">{doc.file_name}</p>
+                          <p className="text-xs text-gray-500">
+                            {doc.file_type} - {new Date(doc.created_at).toLocaleDateString()}
+                          </p>
+                        </div>
+                      </div>
+                      <a
+                        href="#"
+                        onClick={async (e) => {
+                          e.preventDefault();
+                          try {
+                            const url = await getDocumentUrl(doc.file_url);
+                            window.open(url, '_blank');
+                          } catch (err) {
+                            alert('Error opening document');
+                          }
+                        }}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        <span className="material-icons">visibility</span>
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Close Button */}
+            <div className="p-6 border-t border-gray-100">
+              <button
+                onClick={closeDoctorDetailModal}
+                className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Footer */}
       <div className="py-6 text-center text-sm text-gray-400">
-        v1.5 - 2026-01-17
+        v1.6 - 2026-01-17
       </div>
     </div>
   );
