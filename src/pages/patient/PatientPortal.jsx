@@ -12,6 +12,7 @@ import {
   getAllergies,
   getMedications,
   getDocuments,
+  getDoctorDocuments,
   addMedicalCondition,
   addAllergy,
   addMedication,
@@ -24,7 +25,8 @@ import {
   confirmPayment,
   getDoctorAvailability,
   uploadDocument,
-  getDocumentUrl
+  getDocumentUrl,
+  getDoctorPrescriptionUrl
 } from '../../services/patientService';
 import { supabase } from '../../lib/supabaseClient';
 import { sendAppointmentConfirmation } from '../../services/whatsappService';
@@ -79,6 +81,7 @@ const PatientPortal = () => {
   const [showDoctorDetailModal, setShowDoctorDetailModal] = useState(false);
   const [selectedAppointment, setSelectedAppointment] = useState(null);
   const [doctorDocuments, setDoctorDocuments] = useState([]);
+  const [doctorPrescriptions, setDoctorPrescriptions] = useState([]);
   const [uploadingDocument, setUploadingDocument] = useState(false);
   const [documentUploadData, setDocumentUploadData] = useState({
     documentType: 'lab_report',
@@ -349,15 +352,20 @@ const PatientPortal = () => {
     setShowDoctorDetailModal(false);
     setSelectedAppointment(null);
     setDoctorDocuments([]);
+    setDoctorPrescriptions([]);
     setDocumentUploadData({ documentType: 'lab_report', description: '' });
   };
 
   const loadDoctorDocuments = async (doctorId) => {
     try {
+      // Load documents uploaded by patient to this doctor
       const docs = await getDocuments(patientData.id);
-      // Filter documents for this specific doctor
-      const doctorDocs = docs.filter(doc => doc.doctor_id === doctorId);
-      setDoctorDocuments(doctorDocs);
+      const patientDocs = docs.filter(doc => doc.doctor_id === doctorId && doc.uploaded_by !== 'doctor');
+      setDoctorDocuments(patientDocs);
+
+      // Load prescriptions/documents uploaded by doctor for this patient
+      const prescriptions = await getDoctorDocuments(patientData.id, doctorId);
+      setDoctorPrescriptions(prescriptions);
     } catch (error) {
       console.error('Error loading documents:', error);
     }
@@ -1691,6 +1699,83 @@ const PatientPortal = () => {
                   <span className="font-medium capitalize">{selectedAppointment.status}</span>
                 </div>
               </div>
+            </div>
+
+            {/* Prescriptions from Doctor Section */}
+            <div className="p-6 border-b border-gray-100">
+              <h4 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="material-icons text-green-600">medical_services</span>
+                Prescriptions from Doctor ({doctorPrescriptions.length})
+              </h4>
+              {doctorPrescriptions.length === 0 ? (
+                <div className="text-center py-6 text-gray-500">
+                  <span className="material-icons text-4xl mb-2">receipt_long</span>
+                  <p>No prescriptions uploaded by doctor yet</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {doctorPrescriptions.map((doc) => (
+                    <div key={doc.id} className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                          <span className="material-icons text-green-600">description</span>
+                        </div>
+                        <div>
+                          <p className="font-medium text-gray-800">{doc.file_name}</p>
+                          <div className="flex items-center gap-2 text-xs text-gray-500">
+                            <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full font-medium">
+                              {doc.file_type}
+                            </span>
+                            <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                          </div>
+                          {doc.description && (
+                            <p className="text-xs text-gray-600 mt-1">{doc.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            try {
+                              const url = await getDoctorPrescriptionUrl(doc.file_url);
+                              window.open(url, '_blank');
+                            } catch (err) {
+                              console.error('Error opening document:', err, 'Path:', doc.file_url);
+                              alert('Error opening document. Please ask your doctor to re-upload.');
+                            }
+                          }}
+                          className="p-2 text-green-600 hover:bg-green-100 rounded-lg transition"
+                          title="View"
+                        >
+                          <span className="material-icons">visibility</span>
+                        </button>
+                        <button
+                          onClick={async (e) => {
+                            e.preventDefault();
+                            try {
+                              const url = await getDoctorPrescriptionUrl(doc.file_url);
+                              const link = document.createElement('a');
+                              link.href = url;
+                              link.download = doc.file_name;
+                              document.body.appendChild(link);
+                              link.click();
+                              document.body.removeChild(link);
+                            } catch (err) {
+                              console.error('Error downloading document:', err, 'Path:', doc.file_url);
+                              alert('Error downloading document. Please ask your doctor to re-upload.');
+                            }
+                          }}
+                          className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition"
+                          title="Download"
+                        >
+                          <span className="material-icons">download</span>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Upload Document Section */}

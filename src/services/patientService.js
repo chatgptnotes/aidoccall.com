@@ -730,9 +730,33 @@ export const getDocuments = async (patientId, documentType = null) => {
   return data || [];
 };
 
+// Get documents uploaded by doctor for a patient
+export const getDoctorDocuments = async (patientId, doctorId) => {
+  const { data, error } = await supabase
+    .from('doc_patient_reports')
+    .select('*')
+    .eq('doc_patient_id', patientId)
+    .eq('doctor_id', doctorId)
+    .eq('uploaded_by', 'doctor')
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
+};
+
 export const getDocumentUrl = async (filePath) => {
   const { data, error } = await supabase.storage
     .from('patient-documents')
+    .createSignedUrl(filePath, 3600); // 1 hour expiry
+
+  if (error) throw error;
+  return data.signedUrl;
+};
+
+// Get signed URL for doctor-uploaded prescriptions (from doctor-prescriptions bucket)
+export const getDoctorPrescriptionUrl = async (filePath) => {
+  const { data, error } = await supabase.storage
+    .from('doctor-prescriptions')
     .createSignedUrl(filePath, 3600); // 1 hour expiry
 
   if (error) throw error;
@@ -881,7 +905,9 @@ export default {
   cancelAppointment,
   uploadDocument,
   getDocuments,
+  getDoctorDocuments,
   getDocumentUrl,
+  getDoctorPrescriptionUrl,
   deleteDocument,
   searchDoctors,
   getDoctorById,
