@@ -14,6 +14,10 @@ import Hospital from './pages/Hospital';
 import ProtectedRoute from './components/ProtectedRoute';
 import { useAuth } from './contexts/AuthContext';
 
+// Patient Portal Pages
+import PatientRegister from './pages/patient/PatientRegister';
+import PatientPortal from './pages/patient/PatientPortal';
+
 // Role-based Dashboard Component
 const RoleDashboard = () => {
   const { userRole, userProfile, loading } = useAuth();
@@ -30,18 +34,18 @@ const RoleDashboard = () => {
   
   // Route to appropriate dashboard based on role
   if (role === 'telecaller') {
-    console.log('✅ Routing to TelecallerDashboard');
+    console.log('Routing to TelecallerDashboard');
     return <TelecallerDashboard />;
   } else if (role === 'patient' || role === 'user') {
-    console.log('✅ Routing to PatientDashboard');
-    return <PatientDashboard />;
+    console.log('Routing to PatientPortal');
+    return <PatientPortal />;
   } else if (role === 'admin') {
-    console.log('✅ Routing to AdminDashboard');
+    console.log('Routing to AdminDashboard');
     return <Dashboard />;
   } else {
-    // If no role detected, show role selection or default to patient
-    console.log('❌ No role detected, defaulting to PatientDashboard. userRole:', userRole, 'userProfile:', userProfile);
-    return <PatientDashboard />;
+    // If no role detected, show role selection or default to patient portal
+    console.log('No role detected, defaulting to PatientPortal. userRole:', userRole, 'userProfile:', userProfile);
+    return <PatientPortal />;
   }
 };
 
@@ -136,6 +140,16 @@ const App = () => {
           element={
             <ProtectedRoute>
               <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        {/* Patient Portal Routes */}
+        <Route path="/patient/register" element={<PatientRegister />} />
+        <Route
+          path="/patient/portal"
+          element={
+            <ProtectedRoute>
+              <PatientPortal />
             </ProtectedRoute>
           }
         />
