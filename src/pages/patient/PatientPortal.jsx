@@ -88,6 +88,11 @@ const PatientPortal = () => {
     description: ''
   });
 
+  // Profile edit state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editProfileData, setEditProfileData] = useState({});
+  const [savingProfile, setSavingProfile] = useState(false);
+
   useEffect(() => {
     loadPatientData();
   }, [user, userRole]);
@@ -214,23 +219,13 @@ const PatientPortal = () => {
     if (!selectedDoctor || !date) return;
     try {
       const slots = await getDoctorAvailability(selectedDoctor.id, date);
-      if (slots.length > 0) {
-        setAvailableSlots(slots);
-      } else {
-        // Generate default slots if no availability configured
-        const defaultSlots = [];
-        for (let hour = 9; hour < 18; hour++) {
-          defaultSlots.push({ start_time: `${hour.toString().padStart(2, '0')}:00`, end_time: `${(hour + 1).toString().padStart(2, '0')}:00` });
-        }
-        setAvailableSlots(defaultSlots);
-      }
+      // Only show slots if doctor has configured availability for this day
+      // If no slots returned (doctor turned off this day or marked as holiday), show empty
+      setAvailableSlots(slots);
     } catch (error) {
-      // Generate default slots on error
-      const defaultSlots = [];
-      for (let hour = 9; hour < 18; hour++) {
-        defaultSlots.push({ start_time: `${hour.toString().padStart(2, '0')}:00`, end_time: `${(hour + 1).toString().padStart(2, '0')}:00` });
-      }
-      setAvailableSlots(defaultSlots);
+      console.error('Error loading availability:', error);
+      // On error, show no slots rather than default ones
+      setAvailableSlots([]);
     }
   };
 
@@ -459,6 +454,50 @@ const PatientPortal = () => {
     } catch (error) {
       console.error('Error deleting medication:', error);
     }
+  };
+
+  const handleEditProfile = () => {
+    setEditProfileData({
+      first_name: patientData?.first_name || '',
+      last_name: patientData?.last_name || '',
+      phone_number: patientData?.phone_number || '',
+      date_of_birth: patientData?.date_of_birth || '',
+      gender: patientData?.gender || '',
+      blood_group: patientData?.blood_group || '',
+      height_cm: patientData?.height_cm || '',
+      weight_kg: patientData?.weight_kg || ''
+    });
+    setIsEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    try {
+      setSavingProfile(true);
+      // Map field names to what updatePatientProfile expects
+      const profilePayload = {
+        fullName: `${editProfileData.first_name} ${editProfileData.last_name}`.trim(),
+        phone: editProfileData.phone_number,
+        dateOfBirth: editProfileData.date_of_birth,
+        gender: editProfileData.gender,
+        bloodGroup: editProfileData.blood_group,
+        heightCm: editProfileData.height_cm ? parseFloat(editProfileData.height_cm) : null,
+        weightKg: editProfileData.weight_kg ? parseFloat(editProfileData.weight_kg) : null
+      };
+      await updatePatientProfile(patientData.id, profilePayload);
+      await loadPatientData();
+      setIsEditingProfile(false);
+      alert('Profile updated successfully!');
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setSavingProfile(false);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingProfile(false);
+    setEditProfileData({});
   };
 
   const getStatusBadge = (status) => {
@@ -1051,57 +1090,210 @@ const PatientPortal = () => {
                 <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
                   <span className="material-icons text-blue-600 text-5xl">person</span>
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim()}</h2>
-                <p className="text-gray-500">Patient ID: PT-{patientData?.id?.slice(-6).toUpperCase()}</p>
+                {!isEditingProfile ? (
+                  <>
+                    <h2 className="text-2xl font-bold text-gray-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim()}</h2>
+                    <p className="text-gray-500">Patient ID: PT-{patientData?.id?.slice(-6).toUpperCase()}</p>
+                  </>
+                ) : (
+                  <h2 className="text-2xl font-bold text-gray-800">Edit Your Profile</h2>
+                )}
               </div>
 
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
-                    <p className="text-gray-800">{patientData?.email}</p>
+              {!isEditingProfile ? (
+                /* View Mode */
+                <>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Email</label>
+                        <p className="text-gray-800">{patientData?.email}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Phone</label>
+                        <p className="text-gray-800">{patientData?.phone_number || 'Not provided'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Date of Birth</label>
+                        <p className="text-gray-800">
+                          {patientData?.date_of_birth
+                            ? new Date(patientData.date_of_birth).toLocaleDateString()
+                            : 'Not provided'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Gender</label>
+                        <p className="text-gray-800 capitalize">{patientData?.gender || 'Not provided'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Blood Group</label>
+                        <p className="text-gray-800">{patientData?.blood_group || 'Unknown'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Height</label>
+                        <p className="text-gray-800">{patientData?.height_cm ? `${patientData.height_cm} cm` : 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500 mb-1">Weight</label>
+                        <p className="text-gray-800">{patientData?.weight_kg ? `${patientData.weight_kg} kg` : 'N/A'}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Phone</label>
-                    <p className="text-gray-800">{patientData?.phone_number || 'Not provided'}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Date of Birth</label>
-                    <p className="text-gray-800">
-                      {patientData?.date_of_birth
-                        ? new Date(patientData.date_of_birth).toLocaleDateString()
-                        : 'Not provided'}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Gender</label>
-                    <p className="text-gray-800 capitalize">{patientData?.gender || 'Not provided'}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Blood Group</label>
-                    <p className="text-gray-800">{patientData?.blood_group || 'Unknown'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Height</label>
-                    <p className="text-gray-800">{patientData?.height_cm ? `${patientData.height_cm} cm` : 'N/A'}</p>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-500 mb-1">Weight</label>
-                    <p className="text-gray-800">{patientData?.weight_kg ? `${patientData.weight_kg} kg` : 'N/A'}</p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="mt-8 pt-6 border-t border-gray-100">
-                <button className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition">
-                  <span className="material-icons text-sm align-middle mr-2">edit</span>
-                  Edit Profile
-                </button>
-              </div>
+                  <div className="mt-8 pt-6 border-t border-gray-100">
+                    <button
+                      onClick={handleEditProfile}
+                      className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+                    >
+                      <span className="material-icons text-sm align-middle mr-2">edit</span>
+                      Edit Profile
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Edit Mode */
+                <>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">First Name</label>
+                        <input
+                          type="text"
+                          value={editProfileData.first_name}
+                          onChange={(e) => setEditProfileData({...editProfileData, first_name: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Last Name</label>
+                        <input
+                          type="text"
+                          value={editProfileData.last_name}
+                          onChange={(e) => setEditProfileData({...editProfileData, last_name: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                        <input
+                          type="email"
+                          value={patientData?.email || ''}
+                          disabled
+                          className="w-full px-3 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-500"
+                        />
+                        <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                        <input
+                          type="tel"
+                          value={editProfileData.phone_number}
+                          onChange={(e) => setEditProfileData({...editProfileData, phone_number: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Enter phone number"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+                        <input
+                          type="date"
+                          value={editProfileData.date_of_birth}
+                          onChange={(e) => setEditProfileData({...editProfileData, date_of_birth: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                        <select
+                          value={editProfileData.gender}
+                          onChange={(e) => setEditProfileData({...editProfileData, gender: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select Gender</option>
+                          <option value="male">Male</option>
+                          <option value="female">Female</option>
+                          <option value="other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+                        <select
+                          value={editProfileData.blood_group}
+                          onChange={(e) => setEditProfileData({...editProfileData, blood_group: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Select</option>
+                          <option value="A+">A+</option>
+                          <option value="A-">A-</option>
+                          <option value="B+">B+</option>
+                          <option value="B-">B-</option>
+                          <option value="O+">O+</option>
+                          <option value="O-">O-</option>
+                          <option value="AB+">AB+</option>
+                          <option value="AB-">AB-</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
+                        <input
+                          type="number"
+                          value={editProfileData.height_cm}
+                          onChange={(e) => setEditProfileData({...editProfileData, height_cm: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., 170"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
+                        <input
+                          type="number"
+                          value={editProfileData.weight_kg}
+                          onChange={(e) => setEditProfileData({...editProfileData, weight_kg: e.target.value})}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="e.g., 65"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-gray-100 flex gap-4">
+                    <button
+                      onClick={handleCancelEdit}
+                      disabled={savingProfile}
+                      className="flex-1 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium hover:bg-gray-50 transition"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile}
+                      className="flex-1 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:bg-blue-400"
+                    >
+                      {savingProfile ? (
+                        <>
+                          <span className="material-icons text-sm align-middle mr-2 animate-spin">sync</span>
+                          Saving...
+                        </>
+                      ) : (
+                        <>
+                          <span className="material-icons text-sm align-middle mr-2">save</span>
+                          Save Changes
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -1266,6 +1458,14 @@ const PatientPortal = () => {
                           </button>
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {bookingData.date && availableSlots.length === 0 && (
+                    <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-red-700 text-sm font-medium">
+                        Doctor is not available on this date. Please select a different date.
+                      </p>
                     </div>
                   )}
 
@@ -1511,12 +1711,26 @@ const PatientPortal = () => {
                     </div>
                   </div>
 
-                  <button
-                    onClick={closeBookingModal}
-                    className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
-                  >
-                    Done
-                  </button>
+                  <div className="space-y-3">
+                    <button
+                      onClick={() => {
+                        closeBookingModal();
+                        setActiveTab('home');
+                      }}
+                      className="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition"
+                    >
+                      Go to Dashboard
+                    </button>
+                    <button
+                      onClick={() => {
+                        closeBookingModal();
+                        setActiveTab('appointments');
+                      }}
+                      className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                    >
+                      View My Appointments
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

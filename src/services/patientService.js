@@ -821,8 +821,28 @@ export const getDoctorById = async (doctorId) => {
 export const getDoctorAvailability = async (doctorId, date) => {
   // doc_availability uses day_of_week (0-6, Sunday-Saturday) for recurring slots
   const dayOfWeek = new Date(date).getDay();
+  const dateStr = new Date(date).toISOString().split('T')[0];
 
-  const { data, error } = await supabase
+  // First check for date overrides (holidays or special working days)
+  const { data: overrideData, error: overrideError } = await supabase
+    .from('doc_availability_overrides')
+    .select('*')
+    .eq('doctor_id', doctorId)
+    .eq('date', dateStr);
+
+  if (overrideError) {
+    console.error('Error checking overrides:', overrideError);
+  }
+
+  const override = overrideData?.[0];
+
+  // If there's an override marking this day as unavailable (holiday), return empty
+  if (override && !override.is_available) {
+    return [];
+  }
+
+  // Get regular availability for this day of week
+  const { data: availabilityData, error } = await supabase
     .from('doc_availability')
     .select('*')
     .eq('doctor_id', doctorId)
@@ -831,7 +851,75 @@ export const getDoctorAvailability = async (doctorId, date) => {
     .order('start_time', { ascending: true });
 
   if (error) throw error;
-  return data || [];
+
+  if (!availabilityData || availabilityData.length === 0) {
+    return [];
+  }
+
+  // Get existing appointments for this date to exclude booked slots
+  const { data: appointmentsData, error: aptError } = await supabase
+    .from('doc_appointments')
+    .select('start_time, status, doctor_id')
+    .eq('doctor_id', doctorId)
+    .eq('appointment_date', dateStr)
+    .in('status', ['pending', 'confirmed']);
+
+  // Debug logging
+  console.log('=== Slot Availability Debug ===');
+  console.log('Doctor ID:', doctorId);
+  console.log('Date String:', dateStr);
+  console.log('Appointments found:', appointmentsData);
+  console.log('Appointment error:', aptError);
+
+  const bookedTimes = new Set(appointmentsData?.map(apt => apt.start_time) || []);
+  console.log('Booked times Set:', [...bookedTimes]);
+
+  // Generate individual time slots from availability windows
+  const slots = [];
+  const now = new Date();
+  const isToday = dateStr === now.toISOString().split('T')[0];
+
+  for (const avail of availabilityData) {
+    const slotDuration = avail.slot_duration || 30; // Default 30 minutes
+
+    // Parse start and end times
+    const [startHour, startMin] = avail.start_time.split(':').map(Number);
+    const [endHour, endMin] = avail.end_time.split(':').map(Number);
+
+    let currentMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+
+    while (currentMinutes + slotDuration <= endMinutes) {
+      const slotHour = Math.floor(currentMinutes / 60);
+      const slotMin = currentMinutes % 60;
+      const slotTime = `${String(slotHour).padStart(2, '0')}:${String(slotMin).padStart(2, '0')}`;
+      const slotTimeWithSeconds = slotTime + ':00';
+
+      // Check if slot is in the past (for today)
+      let isPast = false;
+      if (isToday) {
+        const slotDate = new Date(date);
+        slotDate.setHours(slotHour, slotMin, 0, 0);
+        isPast = slotDate <= now;
+      }
+
+      // Check if slot is already booked
+      const isBooked = bookedTimes.has(slotTimeWithSeconds) || bookedTimes.has(slotTime);
+
+      if (!isPast && !isBooked) {
+        slots.push({
+          start_time: slotTime,
+          end_time: `${String(Math.floor((currentMinutes + slotDuration) / 60)).padStart(2, '0')}:${String((currentMinutes + slotDuration) % 60).padStart(2, '0')}`,
+          slot_duration: slotDuration,
+          visit_type: avail.visit_type
+        });
+      }
+
+      currentMinutes += slotDuration;
+    }
+  }
+
+  return slots;
 };
 
 // ============================================
