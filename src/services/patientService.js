@@ -609,7 +609,8 @@ export const confirmPayment = async (appointmentId, paymentData) => {
   // Create Zoom meeting for online appointments
   if (data.visit_type === 'online') {
     try {
-      const response = await fetch('http://localhost:3000/api/zoom/create-meeting', {
+      const apiBase = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiBase}/api/zoom/create-meeting`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ appointmentId })
@@ -618,6 +619,18 @@ export const confirmPayment = async (appointmentId, paymentData) => {
       if (response.ok) {
         const meetingData = await response.json();
         console.log('Zoom meeting created:', meetingData);
+
+        // Schedule Recall.ai bot to join the meeting
+        try {
+          await fetch(`${apiBase}/api/recall/schedule-bot`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ appointmentId })
+          });
+          console.log('Recall bot scheduled successfully');
+        } catch (recallError) {
+          console.error('Failed to schedule Recall bot:', recallError);
+        }
 
         // Re-fetch appointment to get updated meeting link
         const { data: updatedData } = await supabase
