@@ -86,7 +86,7 @@ const AgentStatus = () => {
               <h3 className="text-lg font-semibold text-gray-900 mb-4">Status Overview</h3>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600">Status</div>
+                  <div className="text-sm text-gray-600">Satus</div>
                   <div className={`text-lg font-semibold ${
                     status.isActive ? 'text-green-600' : 'text-red-600'
                   }`}>
