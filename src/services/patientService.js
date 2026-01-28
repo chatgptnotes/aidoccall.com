@@ -605,6 +605,35 @@ export const confirmPayment = async (appointmentId, paymentData) => {
     .single();
 
   if (error) throw error;
+
+  // Create Zoom meeting for online appointments
+  if (data.visit_type === 'online') {
+    try {
+      const response = await fetch('http://localhost:3000/api/zoom/create-meeting', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId })
+      });
+
+      if (response.ok) {
+        const meetingData = await response.json();
+        console.log('Zoom meeting created:', meetingData);
+
+        // Re-fetch appointment to get updated meeting link
+        const { data: updatedData } = await supabase
+          .from('doc_appointments')
+          .select('*')
+          .eq('id', appointmentId)
+          .single();
+        return updatedData;
+      } else {
+        console.error('Zoom meeting creation failed:', await response.text());
+      }
+    } catch (e) {
+      console.error('Zoom meeting creation error:', e);
+    }
+  }
+
   return data;
 };
 
