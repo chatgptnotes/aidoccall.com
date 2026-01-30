@@ -80,6 +80,7 @@ const TelecallerDashboard = () => {
       const { data, error } = await supabase
         .from('doc_doctors')
         .select('*')
+        .or('role.eq.doctor,role.is.null') // Exclude superadmins
         .order('full_name', { ascending: true });
 
       if (error) throw error;

@@ -829,7 +829,8 @@ export const deleteDocument = async (documentId, filePath) => {
 export const searchDoctors = async (filters = {}) => {
   let query = supabase
     .from('doc_doctors')
-    .select('*');
+    .select('*')
+    .or('role.eq.doctor,role.is.null'); // Exclude superadmins
 
   if (filters.specialization) {
     query = query.ilike('specialization', `%${filters.specialization}%`);

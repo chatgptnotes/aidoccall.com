@@ -1,5 +1,21 @@
 @import "tailwindcss";
 
+/* Fix for button text color not applying in Tailwind v4 */
+button.text-white,
+a.text-white,
+[class*="bg-blue"].text-white,
+[class*="bg-green"].text-white,
+[class*="bg-red"].text-white,
+[class*="bg-gradient"].text-white {
+  color: white !important;
+}
+
+/* Ensure icons inside buttons inherit text color */
+button .material-icons,
+a .material-icons {
+  color: inherit !important;
+}
+
 /* Custom Animations */
 @keyframes fadeIn {
   from {
@@ -213,4 +229,45 @@
 
 .phone-dropdown-custom .country.highlight {
   background-color: #dbeafe !important;
+}
+
+/* Hide horizontal scrollbar but allow scrolling */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Card hover lift effect */
+.hover-lift {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hover-lift:hover {
+  transform: translateY(-4px);
+}
+
+/* Gradient text utility */
+.gradient-text {
+  background: linear-gradient(135deg, #3b82f6 0%, #6366f1 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Glass morphism effect */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Smooth card shadow transition */
+.card-shadow {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.1);
+  transition: box-shadow 0.3s ease;
+}
+.card-shadow:hover {
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.15), 0 4px 10px rgba(0, 0, 0, 0.05);
 }
