@@ -559,7 +559,7 @@ export const createAppointment = async (patientId, appointmentData) => {
   const { data, error } = await supabase
     .from('doc_appointments')
     .insert({
-      doc_patient_id: patientId,
+      patient_id: patientId,
       doctor_id: appointmentData.doctorId,
       patient_name: appointmentData.patientName,
       patient_email: appointmentData.patientEmail,
@@ -664,7 +664,7 @@ export const getAppointments = async (patientId, status = null) => {
         consultation_fee
       )
     `)
-    .eq('doc_patient_id', patientId);
+    .eq('patient_id', patientId);
 
   if (status) {
     query = query.eq('status', status);
@@ -691,9 +691,9 @@ export const getUpcomingAppointments = async (patientId) => {
         clinic_address
       )
     `)
-    .eq('doc_patient_id', patientId)
+    .eq('patient_id', patientId)
     .gte('appointment_date', today)
-    .in('status', ['pending', 'confirmed'])
+    .in('status', ['pending', 'confirmed', 'cancelled'])
     .order('appointment_date', { ascending: true })
     .order('start_time', { ascending: true });
 
@@ -740,7 +740,7 @@ export const uploadDocument = async (patientId, file, documentData) => {
   const { data, error } = await supabase
     .from('doc_patient_reports')
     .insert({
-      doc_patient_id: patientId,
+      patient_id: patientId,
       doctor_id: documentData.doctorId,
       appointment_id: documentData.appointmentId,
       file_type: documentData.documentType,
@@ -760,7 +760,7 @@ export const getDocuments = async (patientId, documentType = null) => {
   let query = supabase
     .from('doc_patient_reports')
     .select('*')
-    .eq('doc_patient_id', patientId);
+    .eq('patient_id', patientId);
 
   if (documentType) {
     query = query.eq('file_type', documentType);
@@ -777,7 +777,7 @@ export const getDoctorDocuments = async (patientId, doctorId) => {
   const { data, error } = await supabase
     .from('doc_patient_reports')
     .select('*')
-    .eq('doc_patient_id', patientId)
+    .eq('patient_id', patientId)
     .eq('doctor_id', doctorId)
     .eq('uploaded_by', 'doctor')
     .order('created_at', { ascending: false });

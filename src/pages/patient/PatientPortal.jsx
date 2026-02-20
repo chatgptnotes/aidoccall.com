@@ -30,6 +30,7 @@ import {
 } from '../../services/patientService';
 import { supabase } from '../../lib/supabaseClient';
 import { sendAppointmentConfirmation } from '../../services/whatsappService';
+import PatientNotificationBell from '../../components/PatientNotificationBell';
 
 const PatientPortal = () => {
   const navigate = useNavigate();
@@ -67,6 +68,7 @@ const PatientPortal = () => {
     symptoms: ''
   });
   const [availableSlots, setAvailableSlots] = useState([]);
+  const [slotsLoading, setSlotsLoading] = useState(false);
   const [createdAppointment, setCreatedAppointment] = useState(null);
   const [processingPayment, setProcessingPayment] = useState(false);
 
@@ -225,15 +227,16 @@ const PatientPortal = () => {
 
   const loadAvailableSlots = async (date) => {
     if (!selectedDoctor || !date) return;
+    setSlotsLoading(true);
+    setAvailableSlots([]);
     try {
       const slots = await getDoctorAvailability(selectedDoctor.id, date);
-      // Only show slots if doctor has configured availability for this day
-      // If no slots returned (doctor turned off this day or marked as holiday), show empty
       setAvailableSlots(slots);
     } catch (error) {
       console.error('Error loading availability:', error);
-      // On error, show no slots rather than default ones
       setAvailableSlots([]);
+    } finally {
+      setSlotsLoading(false);
     }
   };
 
@@ -589,6 +592,7 @@ const PatientPortal = () => {
               <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-medium text-xs">
                 {getInitials(`${patientData?.first_name || ''} ${patientData?.last_name || ''}`)}
               </div>
+              <PatientNotificationBell patientId={patientData?.id} patientEmail={patientData?.email} />
               <button
                 onClick={handleLogout}
                 className="text-gray-500 hover:text-gray-700 p-2 hover:bg-gray-100 rounded-lg transition"
@@ -654,7 +658,7 @@ const PatientPortal = () => {
                     <span className="material-icons text-blue-600 text-xl">event</span>
                   </div>
                   <div>
-                    <p className="text-2xl font-semibold text-gray-900">{upcomingAppointments.length}</p>
+                    <p className="text-2xl font-semibold text-gray-900">{upcomingAppointments.filter(a => a.status !== 'cancelled').length}</p>
                     <p className="text-xs text-gray-500">Upcoming</p>
                   </div>
                 </div>
@@ -725,10 +729,16 @@ const PatientPortal = () => {
                         <p className="font-semibold text-gray-900">
                           {new Date(apt.appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
                         </p>
-                        <p className="text-sm text-gray-500">{apt.appointment_time}</p>
+                        <p className="text-sm text-gray-500">{apt.start_time?.slice(0, 5)}</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {apt.payment_status === 'pending' && (
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        {apt.is_rescheduled && (
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-orange-100 text-orange-700 flex items-center gap-1">
+                            <span className="material-icons text-xs">event_repeat</span>
+                            Rescheduled
+                          </span>
+                        )}
+                        {apt.payment_status === 'pending' && apt.status !== 'cancelled' && (
                           <button
                             onClick={() => handleContinuePayment(apt)}
                             className="px-4 py-1.5 bg-amber-500 text-white rounded-lg text-xs font-semibold hover:bg-amber-600 shadow-md"
@@ -983,9 +993,17 @@ const PatientPortal = () => {
                         <div className="flex items-center gap-4 lg:gap-6">
                           <div className="text-center bg-gray-50 rounded-xl px-4 py-2">
                             <p className="font-bold text-gray-900">{new Date(apt.appointment_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}</p>
-                            <p className="text-sm text-gray-500">{apt.appointment_time}</p>
+                            <p className="text-sm text-gray-500">{apt.start_time?.slice(0, 5)}</p>
                           </div>
-                          <span className={`px-4 py-1.5 rounded-xl text-sm font-semibold capitalize ${getStatusBadge(apt.status)}`}>{apt.status}</span>
+                          <div className="flex flex-col items-center gap-1">
+                            <span className={`px-4 py-1.5 rounded-xl text-sm font-semibold capitalize ${getStatusBadge(apt.status)}`}>{apt.status}</span>
+                            {apt.is_rescheduled && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-orange-100 text-orange-700">
+                                <span className="material-icons text-[10px]">event_repeat</span>
+                                Rescheduled
+                              </span>
+                            )}
+                          </div>
                           <div className="text-right">
                             <p className="font-bold text-gray-900 text-lg">Rs. {apt.consultation_fee || apt.amount}</p>
                             {(apt.status === 'scheduled' || apt.status === 'pending') && (
@@ -1494,7 +1512,14 @@ const PatientPortal = () => {
                     />
                   </div>
 
-                  {bookingData.date && availableSlots.length > 0 && (
+                  {bookingData.date && slotsLoading && (
+                    <div className="flex items-center justify-center py-6 gap-3">
+                      <span className="material-icons text-blue-500 animate-spin text-xl">autorenew</span>
+                      <p className="text-sm text-gray-500">Loading available slots...</p>
+                    </div>
+                  )}
+
+                  {bookingData.date && !slotsLoading && availableSlots.length > 0 && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Select Time</label>
                       <div className="grid grid-cols-4 gap-2">
@@ -1516,7 +1541,7 @@ const PatientPortal = () => {
                     </div>
                   )}
 
-                  {bookingData.date && availableSlots.length === 0 && (
+                  {bookingData.date && !slotsLoading && availableSlots.length === 0 && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                       <p className="text-red-700 text-sm font-medium">
                         Doctor is not available on this date. Please select a different date.
