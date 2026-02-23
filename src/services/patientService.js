@@ -762,10 +762,12 @@ export const uploadDocument = async (patientId, file, documentData) => {
   if (uploadError) throw uploadError;
 
   // Create document record in doc_patient_reports
+  // Set both patient_id and doc_patient_id for cross-app compatibility
   const { data, error } = await supabase
     .from('doc_patient_reports')
     .insert({
       patient_id: patientId,
+      doc_patient_id: patientId,
       doctor_id: documentData.doctorId,
       appointment_id: documentData.appointmentId,
       file_type: documentData.documentType,
@@ -785,7 +787,7 @@ export const getDocuments = async (patientId, documentType = null) => {
   let query = supabase
     .from('doc_patient_reports')
     .select('*')
-    .eq('patient_id', patientId);
+    .or(`patient_id.eq.${patientId},doc_patient_id.eq.${patientId}`);
 
   if (documentType) {
     query = query.eq('file_type', documentType);
@@ -802,7 +804,7 @@ export const getDoctorDocuments = async (patientId, doctorId) => {
   const { data, error } = await supabase
     .from('doc_patient_reports')
     .select('*')
-    .eq('patient_id', patientId)
+    .or(`patient_id.eq.${patientId},doc_patient_id.eq.${patientId}`)
     .eq('doctor_id', doctorId)
     .eq('uploaded_by', 'doctor')
     .order('created_at', { ascending: false });
@@ -820,14 +822,14 @@ export const getDocumentUrl = async (filePath) => {
   return data.signedUrl;
 };
 
-// Get signed URL for doctor-uploaded prescriptions (from doctor-prescriptions bucket)
+// Get public URL for doctor-uploaded prescriptions (doctor-prescriptions is a public bucket)
 export const getDoctorPrescriptionUrl = async (filePath) => {
-  const { data, error } = await supabase.storage
+  const { data } = supabase.storage
     .from('doctor-prescriptions')
-    .createSignedUrl(filePath, 3600); // 1 hour expiry
+    .getPublicUrl(filePath);
 
-  if (error) throw error;
-  return data.signedUrl;
+  if (!data?.publicUrl) throw new Error('Could not get document URL');
+  return data.publicUrl;
 };
 
 export const deleteDocument = async (documentId, filePath) => {
