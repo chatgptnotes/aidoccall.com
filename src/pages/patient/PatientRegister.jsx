@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../lib/supabaseClient';
 import {
   createPatientProfile,
+  getPatientProfile,
   addPatientAddress,
   addEmergencyContact,
   addMedicalCondition,
@@ -144,7 +145,10 @@ const PatientRegister = () => {
 
     try {
       if (currentStep === 1) {
-        // Create auth user
+        let userId = null;
+        let session = null;
+
+        // Try to create auth user
         const { data: authData, error: authError } = await supabase.auth.signUp({
           email: accountData.email,
           password: accountData.password,
@@ -155,26 +159,41 @@ const PatientRegister = () => {
           }
         });
 
-        if (authError) throw authError;
+        if (authError) {
+          // If user already exists (from a previous failed attempt), try signing in
+          if (authError.message?.toLowerCase().includes('already registered') ||
+              authError.message?.toLowerCase().includes('already been registered') ||
+              authError.message?.toLowerCase().includes('user already')) {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: accountData.email,
+              password: accountData.password
+            });
 
-        let userId = authData.user?.id;
-        let session = authData.session;
-
-        // If no session returned, try to sign in immediately
-        if (!session && userId) {
-          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
-            email: accountData.email,
-            password: accountData.password
-          });
-
-          if (signInError) {
-            // If sign-in fails, email confirmation might be required
-            setError('Account created! Please check your email to confirm, then sign in.');
-            return;
+            if (signInError) throw signInError;
+            session = signInData.session;
+            userId = signInData.user?.id;
+          } else {
+            throw authError;
           }
+        } else {
+          userId = authData.user?.id;
+          session = authData.session;
 
-          session = signInData.session;
-          userId = signInData.user?.id;
+          // If no session returned, try to sign in immediately
+          if (!session && userId) {
+            const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+              email: accountData.email,
+              password: accountData.password
+            });
+
+            if (signInError) {
+              setError('Account created! Please check your email to confirm, then sign in.');
+              return;
+            }
+
+            session = signInData.session;
+            userId = signInData.user?.id;
+          }
         }
 
         if (!userId) {
@@ -184,13 +203,25 @@ const PatientRegister = () => {
         // Wait a moment for session to propagate
         await new Promise(resolve => setTimeout(resolve, 300));
 
-        // Create patient profile
-        const profile = await createPatientProfile(userId, {
-          email: accountData.email,
-          fullName: personalData.fullName || 'Patient'
-        });
+        // Check if patient profile already exists (from a previous failed attempt)
+        let existingProfile = null;
+        try {
+          existingProfile = await getPatientProfile(userId);
+        } catch (profileCheckErr) {
+          // Ignore errors checking for existing profile (e.g., RLS 406)
+          console.log('Profile check skipped:', profileCheckErr.message);
+        }
 
-        setPatientId(profile.id);
+        if (existingProfile) {
+          setPatientId(existingProfile.id);
+        } else {
+          // Create patient profile
+          const profile = await createPatientProfile(userId, {
+            email: accountData.email,
+            fullName: personalData.fullName || 'Patient'
+          });
+          setPatientId(profile.id);
+        }
       }
 
       if (currentStep === 2 && patientId) {

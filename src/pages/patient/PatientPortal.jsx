@@ -157,7 +157,9 @@ const PatientPortal = () => {
 
   const loadDoctors = async () => {
     try {
+      console.log('Loading doctors with filters:', doctorFilters);
       const data = await searchDoctors(doctorFilters);
+      console.log('Doctors loaded:', data?.length, data);
       setDoctors(data);
 
       // Extract unique specializations for filter dropdown (only on initial load)

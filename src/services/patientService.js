@@ -484,20 +484,45 @@ export const getInsurance = async (patientId) => {
 // ============================================
 
 export const selectDoctor = async (patientId, doctorId, isFavorite = false) => {
-  const { data, error } = await supabase
-    .from('doc_patient_doctor_selections')
-    .upsert({
-      patient_id: patientId,
-      doctor_id: doctorId,
-      is_favorite: isFavorite
-    }, {
-      onConflict: 'patient_id,doctor_id'
-    })
-    .select()
-    .single();
+  try {
+    const { data, error } = await supabase
+      .from('doc_patient_doctor_selections')
+      .upsert({
+        patient_id: patientId,
+        doctor_id: doctorId,
+        is_favorite: isFavorite
+      }, {
+        onConflict: 'patient_id,doctor_id'
+      })
+      .select()
+      .single();
 
-  if (error) throw error;
-  return data;
+    if (error) throw error;
+    return data;
+  } catch (err) {
+    // If is_favorite column doesn't exist, retry without it
+    if (err.message?.includes('is_favorite') || err.code === 'PGRST204') {
+      const { data, error } = await supabase
+        .from('doc_patient_doctor_selections')
+        .upsert({
+          patient_id: patientId,
+          doctor_id: doctorId
+        }, {
+          onConflict: 'patient_id,doctor_id'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        console.warn('Could not save doctor selection:', error.message);
+        return null;
+      }
+      return data;
+    }
+    // If the table itself doesn't exist, just skip silently
+    console.warn('Doctor selection skipped:', err.message);
+    return null;
+  }
 };
 
 export const getSelectedDoctors = async (patientId) => {
@@ -829,8 +854,7 @@ export const deleteDocument = async (documentId, filePath) => {
 export const searchDoctors = async (filters = {}) => {
   let query = supabase
     .from('doc_doctors')
-    .select('*')
-    .or('role.eq.doctor,role.is.null'); // Exclude superadmins
+    .select('*');
 
   if (filters.specialization) {
     query = query.ilike('specialization', `%${filters.specialization}%`);
