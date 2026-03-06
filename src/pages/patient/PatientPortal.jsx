@@ -31,7 +31,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { sendAppointmentConfirmation } from '../../services/whatsappService';
 import PatientNotificationBell from '../../components/PatientNotificationBell';
-import { formatPrice, getCurrency } from '../../utils/currency';
+import { formatPrice, getCurrency, getDoctorFee, formatDoctorFee } from '../../utils/currency';
 
 const PatientPortal = () => {
   const navigate = useNavigate();
@@ -239,10 +239,8 @@ const PatientPortal = () => {
     if (!selectedDoctor || !bookingData.date || !bookingData.time || !bookingData.visitType) return;
 
     try {
-      // Use online_fee for online visits, consultation_fee for physical visits
-      const fee = bookingData.visitType === 'online'
-        ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0)
-        : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0);
+      // Get fee based on patient residency (INR for Indian, USD for International)
+      const feeInfo = getDoctorFee(selectedDoctor, patientData?.is_indian_resident, bookingData.visitType);
 
       const appointment = await createAppointment(patientData.id, {
         doctorId: selectedDoctor.id,
@@ -254,7 +252,8 @@ const PatientPortal = () => {
         visitType: bookingData.visitType,
         reasonForVisit: bookingData.reason,
         symptoms: bookingData.symptoms,
-        consultationFee: fee
+        consultationFee: feeInfo.amount,
+        currency: feeInfo.currency // Store currency with appointment
       });
 
       setCreatedAppointment(appointment);
@@ -920,7 +919,7 @@ const PatientPortal = () => {
                     <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                       <div>
                         <p className="text-xl font-semibold text-gray-900">
-                          {formatPrice(doctor.consultation_fee || doctor.online_fee || 0, patientData?.is_indian_resident)}
+                          {formatDoctorFee(doctor, patientData?.is_indian_resident, 'physical')}
                         </p>
                         <p className="text-xs text-gray-400">per session</p>
                       </div>
@@ -1436,7 +1435,7 @@ const PatientPortal = () => {
                   <p className="text-sm text-gray-500">{selectedDoctor.clinic_name || selectedDoctor.clinic_address || ''}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-gray-800">{formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee) || 0, patientData?.is_indian_resident)}</p>
+                  <p className="text-lg font-bold text-gray-800">{formatDoctorFee(selectedDoctor, patientData?.is_indian_resident, bookingData.visitType)}</p>
                   <p className="text-xs text-gray-500">per session</p>
                 </div>
               </div>
@@ -1637,7 +1636,7 @@ const PatientPortal = () => {
                     <div className="border-t border-gray-200 mt-4 pt-4">
                       <div className="flex justify-between text-lg">
                         <span className="font-bold text-gray-800">Total Amount</span>
-                        <span className="font-bold text-blue-600">{formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0), patientData?.is_indian_resident)}</span>
+                        <span className="font-bold text-blue-600">{formatDoctorFee(selectedDoctor, patientData?.is_indian_resident, bookingData.visitType)}</span>
                       </div>
                     </div>
                   </div>
@@ -1685,7 +1684,7 @@ const PatientPortal = () => {
                       ) : (
                         <>
                           <span className="material-icons text-sm">lock</span>
-                          Pay {formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0), patientData?.is_indian_resident)}
+                          Pay {formatDoctorFee(selectedDoctor, patientData?.is_indian_resident, bookingData.visitType)}
                         </>
                       )}
                     </button>
@@ -1788,7 +1787,7 @@ const PatientPortal = () => {
                         </div>
                         <div className="flex justify-between mt-2">
                           <span className="text-gray-600">Amount Paid</span>
-                          <span className="font-bold text-gray-800">{formatPrice(createdAppointment.amount || (bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)), patientData?.is_indian_resident)}</span>
+                          <span className="font-bold text-gray-800">{createdAppointment.amount ? formatPrice(createdAppointment.amount, patientData?.is_indian_resident) : formatDoctorFee(selectedDoctor, patientData?.is_indian_resident, bookingData.visitType)}</span>
                         </div>
                         {createdAppointment.payment_id && (
                           <div className="flex justify-between mt-2">

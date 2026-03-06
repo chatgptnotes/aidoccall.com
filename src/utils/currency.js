@@ -1,6 +1,6 @@
 // Currency utility for handling INR/USD based on patient residency
 
-// Fixed conversion rate (you can update this or fetch from an API)
+// Fallback conversion rate (used only if doctor hasn't set international fee)
 const INR_TO_USD_RATE = 0.012; // 1 INR = 0.012 USD (approx 83 INR = 1 USD)
 
 /**
@@ -101,10 +101,80 @@ export const getConversionRate = () => {
   };
 };
 
+/**
+ * Get the appropriate consultation fee based on patient residency
+ * @param {object} doctor - Doctor object with fee fields
+ * @param {boolean} isIndianResident - Whether patient is Indian resident
+ * @param {string} visitType - 'online' or 'physical'
+ * @returns {object} { amount, currency, symbol }
+ */
+export const getDoctorFee = (doctor, isIndianResident, visitType = 'physical') => {
+  if (!doctor) return { amount: 0, currency: 'INR', symbol: '₹' };
+  
+  const currency = getCurrency(isIndianResident);
+  
+  if (isIndianResident === true) {
+    // Indian patient - use INR fees
+    const fee = visitType === 'online' 
+      ? (doctor.online_fee || doctor.consultation_fee || 0)
+      : (doctor.consultation_fee || doctor.online_fee || 0);
+    
+    return {
+      amount: fee,
+      currency: 'INR',
+      symbol: '₹',
+      formatted: formatPrice(fee, true)
+    };
+  } else {
+    // International patient - use USD fees if available, else convert
+    const intlFee = visitType === 'online'
+      ? (doctor.international_online_fee || doctor.international_consultation_fee)
+      : (doctor.international_consultation_fee || doctor.international_online_fee);
+    
+    if (intlFee && intlFee > 0) {
+      // Doctor has set specific USD fee
+      return {
+        amount: intlFee,
+        currency: 'USD',
+        symbol: '$',
+        formatted: `$${intlFee.toFixed(2)}`
+      };
+    } else {
+      // Fallback: Convert INR fee to USD
+      const inrFee = visitType === 'online'
+        ? (doctor.online_fee || doctor.consultation_fee || 0)
+        : (doctor.consultation_fee || doctor.online_fee || 0);
+      const convertedFee = convertFromINR(inrFee, false);
+      
+      return {
+        amount: convertedFee,
+        currency: 'USD',
+        symbol: '$',
+        formatted: `$${convertedFee.toFixed(2)}`,
+        isConverted: true // Flag to show it's auto-converted
+      };
+    }
+  }
+};
+
+/**
+ * Format doctor fee for display
+ * @param {object} doctor - Doctor object
+ * @param {boolean} isIndianResident - Whether patient is Indian resident  
+ * @param {string} visitType - 'online' or 'physical'
+ * @returns {string} Formatted price string
+ */
+export const formatDoctorFee = (doctor, isIndianResident, visitType = 'physical') => {
+  const feeInfo = getDoctorFee(doctor, isIndianResident, visitType);
+  return feeInfo.formatted;
+};
+
 export default {
   getCurrency,
   convertFromINR,
   convertToINR,
   formatPrice,
-  getConversionRate
+  getConversionRate,
+  getDoctorFee,
+  formatDoctorFee
 };
