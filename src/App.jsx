@@ -18,6 +18,7 @@ import { useAuth } from './contexts/AuthContext';
 // Patient Portal Pages
 import PatientRegister from './pages/patient/PatientRegister';
 import PatientPortal from './pages/patient/PatientPortal';
+import PatientIntakeForm from './pages/patient/PatientIntakeForm';
 
 // Role-based Dashboard Component
 const RoleDashboard = () => {
@@ -163,6 +164,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <PatientPortal />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/intake"
+          element={
+            <ProtectedRoute>
+              <PatientIntakeForm />
             </ProtectedRoute>
           }
         />

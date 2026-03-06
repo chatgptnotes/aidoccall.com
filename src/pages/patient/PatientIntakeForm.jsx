@@ -1,0 +1,884 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
+import { supabase } from '../../lib/supabaseClient';
+import {
+  getPatientProfile,
+  addPatientAddress,
+  addEmergencyContact,
+  addMedicalCondition,
+  addAllergy,
+  addInsurance,
+  updateRegistrationStep
+} from '../../services/patientService';
+
+const STEPS = [
+  { id: 1, title: 'Personal', description: 'Personal information' },
+  { id: 2, title: 'Address', description: 'Your address' },
+  { id: 3, title: 'Emergency', description: 'Emergency contact' },
+  { id: 4, title: 'Medical', description: 'Medical info (optional)' }
+];
+
+const COMMON_CONDITIONS = [
+  'Diabetes', 'Hypertension', 'Heart Disease', 'Asthma', 'Thyroid',
+  'Arthritis', 'Cancer', 'COPD', 'Kidney Disease', 'Liver Disease'
+];
+
+const COMMON_ALLERGIES = [
+  'Penicillin', 'Sulfa drugs', 'Aspirin', 'NSAIDs', 'Latex',
+  'Peanuts', 'Shellfish', 'Eggs', 'Milk', 'Dust'
+];
+
+const PatientIntakeForm = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { user } = useAuth();
+  const [currentStep, setCurrentStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [patientId, setPatientId] = useState(null);
+  const [appointmentId, setAppointmentId] = useState(null);
+
+  // Step 1: Personal
+  const [personalData, setPersonalData] = useState({
+    fullName: '',
+    phone: '',
+    dateOfBirth: '',
+    gender: ''
+  });
+
+  // Step 2: Address
+  const [addressData, setAddressData] = useState({
+    streetAddress: '',
+    apartmentUnit: '',
+    city: '',
+    state: '',
+    postalCode: '',
+    country: 'India'
+  });
+
+  // Step 3: Emergency Contact
+  const [emergencyData, setEmergencyData] = useState({
+    contactName: '',
+    relationship: '',
+    phone: '',
+    email: ''
+  });
+
+  // Step 4: Medical (optional)
+  const [medicalData, setMedicalData] = useState({
+    bloodGroup: '',
+    heightCm: '',
+    weightKg: '',
+    hasInsurance: null,
+    insuranceProvider: '',
+    insurancePolicyNumber: '',
+    conditions: [],
+    allergies: [],
+    customCondition: '',
+    customAllergy: ''
+  });
+
+  useEffect(() => {
+    loadPatientData();
+    // Get appointment ID from location state if redirected from payment
+    if (location.state?.appointmentId) {
+      setAppointmentId(location.state.appointmentId);
+    }
+  }, [user, location]);
+
+  const loadPatientData = async () => {
+    if (!user?.id) {
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const profile = await getPatientProfile(user.id);
+      if (profile) {
+        setPatientId(profile.id);
+        
+        // Check if intake form is already completed
+        if (profile.intake_form_completed) {
+          // Redirect to dashboard or appointment confirmation
+          if (location.state?.appointmentId) {
+            navigate('/patient/portal', { 
+              state: { 
+                showConfirmation: true, 
+                appointmentId: location.state.appointmentId 
+              } 
+            });
+          } else {
+            navigate('/dashboard');
+          }
+          return;
+        }
+
+        // Pre-fill with any existing data
+        if (profile.first_name || profile.last_name) {
+          setPersonalData(prev => ({
+            ...prev,
+            fullName: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+            phone: profile.phone_number || '',
+            dateOfBirth: profile.date_of_birth || '',
+            gender: profile.gender || ''
+          }));
+        }
+      } else {
+        // No patient profile, redirect to register
+        navigate('/patient/register');
+        return;
+      }
+    } catch (error) {
+      console.error('Error loading patient data:', error);
+    } finally {
+      setInitialLoading(false);
+    }
+  };
+
+  const validateStep = (step) => {
+    setError('');
+
+    switch (step) {
+      case 1:
+        if (!personalData.fullName || !personalData.phone) {
+          setError('Name and phone are required');
+          return false;
+        }
+        if (personalData.phone.length < 10) {
+          setError('Please enter a valid phone number');
+          return false;
+        }
+        return true;
+
+      case 2:
+        if (!addressData.streetAddress || !addressData.city || !addressData.state || !addressData.postalCode) {
+          setError('Please fill in all required address fields');
+          return false;
+        }
+        return true;
+
+      case 3:
+        if (!emergencyData.contactName || !emergencyData.relationship || !emergencyData.phone) {
+          setError('Please fill in emergency contact details');
+          return false;
+        }
+        return true;
+
+      case 4:
+        return true; // Optional step
+
+      default:
+        return true;
+    }
+  };
+
+  const handleNext = async () => {
+    if (!validateStep(currentStep)) return;
+
+    setLoading(true);
+    setError('');
+
+    try {
+      if (currentStep === 1 && patientId) {
+        // Update patient profile with personal data
+        const nameParts = (personalData.fullName || '').trim().split(' ');
+        const firstName = nameParts[0] || '';
+        const lastName = nameParts.slice(1).join(' ') || '';
+
+        await supabase
+          .from('doc_patients')
+          .update({
+            first_name: firstName,
+            last_name: lastName,
+            phone_number: personalData.phone,
+            date_of_birth: personalData.dateOfBirth || null,
+            gender: personalData.gender || null,
+            registration_step: 2
+          })
+          .eq('id', patientId);
+      }
+
+      if (currentStep === 2 && patientId) {
+        await addPatientAddress(patientId, {
+          ...addressData,
+          isPrimary: true,
+          addressType: 'home'
+        });
+        await updateRegistrationStep(patientId, 3);
+      }
+
+      if (currentStep === 3 && patientId) {
+        await addEmergencyContact(patientId, {
+          ...emergencyData,
+          isPrimary: true
+        });
+        await updateRegistrationStep(patientId, 4);
+      }
+
+      if (currentStep === 4 && patientId) {
+        // Save medical info
+        const { bloodGroup, heightCm, weightKg, conditions, allergies } = medicalData;
+
+        // Update patient with basic medical info and mark intake form as completed
+        await supabase
+          .from('doc_patients')
+          .update({
+            blood_group: bloodGroup || null,
+            height_cm: heightCm || null,
+            weight_kg: weightKg || null,
+            registration_completed: true,
+            intake_form_completed: true,
+            registration_step: 5
+          })
+          .eq('id', patientId);
+
+        // Add conditions
+        for (const condition of conditions) {
+          await addMedicalCondition(patientId, {
+            conditionName: condition,
+            conditionType: 'ongoing'
+          });
+        }
+
+        // Add allergies
+        for (const allergy of allergies) {
+          await addAllergy(patientId, {
+            allergyName: allergy,
+            allergyType: 'drug',
+            severity: 'moderate'
+          });
+        }
+
+        // Add insurance if provided
+        if (medicalData.hasInsurance && medicalData.insuranceProvider) {
+          await addInsurance(patientId, {
+            providerName: medicalData.insuranceProvider,
+            policyNumber: medicalData.insurancePolicyNumber || null,
+            coverageType: 'individual',
+            isPrimary: true
+          });
+        }
+
+        // Navigate to dashboard or appointment confirmation
+        if (appointmentId) {
+          navigate('/patient/portal', { 
+            state: { 
+              showConfirmation: true, 
+              appointmentId: appointmentId 
+            } 
+          });
+        } else {
+          navigate('/dashboard');
+        }
+        return;
+      }
+
+      setCurrentStep(currentStep + 1);
+    } catch (err) {
+      console.error('Intake form error:', err);
+      setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
+  const handleSkip = async () => {
+    if (currentStep === 4 && patientId) {
+      setLoading(true);
+      try {
+        await supabase
+          .from('doc_patients')
+          .update({
+            registration_completed: true,
+            intake_form_completed: true,
+            registration_step: 5
+          })
+          .eq('id', patientId);
+
+        if (appointmentId) {
+          navigate('/patient/portal', { 
+            state: { 
+              showConfirmation: true, 
+              appointmentId: appointmentId 
+            } 
+          });
+        } else {
+          navigate('/dashboard');
+        }
+      } catch (err) {
+        setError(err.message);
+      } finally {
+        setLoading(false);
+      }
+    }
+  };
+
+  const toggleCondition = (condition) => {
+    setMedicalData(prev => ({
+      ...prev,
+      conditions: prev.conditions.includes(condition)
+        ? prev.conditions.filter(c => c !== condition)
+        : [...prev.conditions, condition]
+    }));
+  };
+
+  const toggleAllergy = (allergy) => {
+    setMedicalData(prev => ({
+      ...prev,
+      allergies: prev.allergies.includes(allergy)
+        ? prev.allergies.filter(a => a !== allergy)
+        : [...prev.allergies, allergy]
+    }));
+  };
+
+  const addCustomCondition = () => {
+    if (medicalData.customCondition && !medicalData.conditions.includes(medicalData.customCondition)) {
+      setMedicalData(prev => ({
+        ...prev,
+        conditions: [...prev.conditions, prev.customCondition],
+        customCondition: ''
+      }));
+    }
+  };
+
+  const addCustomAllergy = () => {
+    if (medicalData.customAllergy && !medicalData.allergies.includes(medicalData.customAllergy)) {
+      setMedicalData(prev => ({
+        ...prev,
+        allergies: [...prev.allergies, prev.customAllergy],
+        customAllergy: ''
+      }));
+    }
+  };
+
+  const renderStepContent = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+              <input
+                type="text"
+                value={personalData.fullName}
+                onChange={(e) => setPersonalData({ ...personalData, fullName: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your full name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+              <input
+                type="tel"
+                value={personalData.phone}
+                onChange={(e) => setPersonalData({ ...personalData, phone: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="+91 XXXXX XXXXX"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Date of Birth</label>
+              <input
+                type="date"
+                value={personalData.dateOfBirth}
+                onChange={(e) => setPersonalData({ ...personalData, dateOfBirth: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+              <select
+                value={personalData.gender}
+                onChange={(e) => setPersonalData({ ...personalData, gender: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other / Prefer not to say</option>
+              </select>
+            </div>
+          </div>
+        );
+
+      case 2:
+        return (
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
+              <input
+                type="text"
+                value={addressData.streetAddress}
+                onChange={(e) => setAddressData({ ...addressData, streetAddress: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="House/Flat No, Street Name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Apartment/Unit (Optional)</label>
+              <input
+                type="text"
+                value={addressData.apartmentUnit}
+                onChange={(e) => setAddressData({ ...addressData, apartmentUnit: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Apt, Suite, Building"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
+                <input
+                  type="text"
+                  value={addressData.city}
+                  onChange={(e) => setAddressData({ ...addressData, city: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="City"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">State *</label>
+                <input
+                  type="text"
+                  value={addressData.state}
+                  onChange={(e) => setAddressData({ ...addressData, state: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="State"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code *</label>
+                <input
+                  type="text"
+                  value={addressData.postalCode}
+                  onChange={(e) => setAddressData({ ...addressData, postalCode: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="PIN Code"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Country</label>
+                <input
+                  type="text"
+                  value={addressData.country}
+                  onChange={(e) => setAddressData({ ...addressData, country: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-50"
+                  readOnly
+                />
+              </div>
+            </div>
+          </div>
+        );
+
+      case 3:
+        return (
+          <div className="space-y-4">
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
+              <p className="text-amber-800 text-sm">
+                <span className="material-icons text-sm align-middle mr-1">info</span>
+                This person will be contacted in case of emergency during your consultations.
+              </p>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Contact Name *</label>
+              <input
+                type="text"
+                value={emergencyData.contactName}
+                onChange={(e) => setEmergencyData({ ...emergencyData, contactName: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Full name of emergency contact"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Relationship *</label>
+              <select
+                value={emergencyData.relationship}
+                onChange={(e) => setEmergencyData({ ...emergencyData, relationship: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select relationship</option>
+                <option value="spouse">Spouse</option>
+                <option value="parent">Parent</option>
+                <option value="sibling">Sibling</option>
+                <option value="child">Child</option>
+                <option value="friend">Friend</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Phone Number *</label>
+              <input
+                type="tel"
+                value={emergencyData.phone}
+                onChange={(e) => setEmergencyData({ ...emergencyData, phone: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="+91 XXXXX XXXXX"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Email (Optional)</label>
+              <input
+                type="email"
+                value={emergencyData.email}
+                onChange={(e) => setEmergencyData({ ...emergencyData, email: e.target.value })}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="emergency@email.com"
+              />
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="space-y-6">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-blue-800 text-sm">
+                <span className="material-icons text-sm align-middle mr-1">info</span>
+                This information helps doctors provide better care. You can skip this step and add later.
+              </p>
+            </div>
+
+            {/* Basic Medical Info */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Blood Group</label>
+                <select
+                  value={medicalData.bloodGroup}
+                  onChange={(e) => setMedicalData({ ...medicalData, bloodGroup: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Height (cm)</label>
+                <input
+                  type="number"
+                  value={medicalData.heightCm}
+                  onChange={(e) => setMedicalData({ ...medicalData, heightCm: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="170"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Weight (kg)</label>
+                <input
+                  type="number"
+                  value={medicalData.weightKg}
+                  onChange={(e) => setMedicalData({ ...medicalData, weightKg: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="70"
+                />
+              </div>
+            </div>
+
+            {/* Insurance */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Do you have health insurance?
+              </label>
+              <div className="flex gap-3 mb-3">
+                <button
+                  type="button"
+                  onClick={() => setMedicalData({ ...medicalData, hasInsurance: true })}
+                  className={`px-5 py-2.5 rounded-lg text-sm font-medium border transition ${
+                    medicalData.hasInsurance === true
+                      ? 'bg-blue-600 text-white border-blue-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                  }`}
+                >
+                  Yes
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setMedicalData({ ...medicalData, hasInsurance: false, insuranceProvider: '', insurancePolicyNumber: '' })}
+                  className={`px-5 py-2.5 rounded-lg text-sm font-medium border transition ${
+                    medicalData.hasInsurance === false
+                      ? 'bg-gray-600 text-white border-gray-600'
+                      : 'bg-white text-gray-700 border-gray-300 hover:border-gray-500'
+                  }`}
+                >
+                  No
+                </button>
+              </div>
+              {medicalData.hasInsurance && (
+                <div className="grid grid-cols-2 gap-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Insurance Provider</label>
+                    <input
+                      type="text"
+                      value={medicalData.insuranceProvider}
+                      onChange={(e) => setMedicalData({ ...medicalData, insuranceProvider: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="e.g. Star Health, LIC"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Policy Number (Optional)</label>
+                    <input
+                      type="text"
+                      value={medicalData.insurancePolicyNumber}
+                      onChange={(e) => setMedicalData({ ...medicalData, insurancePolicyNumber: e.target.value })}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Policy number"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Medical Conditions */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Do you have any medical conditions?
+              </label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {COMMON_CONDITIONS.map(condition => (
+                  <button
+                    key={condition}
+                    type="button"
+                    onClick={() => toggleCondition(condition)}
+                    className={`px-3 py-1 rounded-full text-sm border transition ${
+                      medicalData.conditions.includes(condition)
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-blue-500'
+                    }`}
+                  >
+                    {condition}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={medicalData.customCondition}
+                  onChange={(e) => setMedicalData({ ...medicalData, customCondition: e.target.value })}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Add other condition"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomCondition}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Add
+                </button>
+              </div>
+              {medicalData.conditions.length > 0 && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Selected: {medicalData.conditions.join(', ')}
+                </div>
+              )}
+            </div>
+
+            {/* Allergies */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Do you have any allergies?
+              </label>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {COMMON_ALLERGIES.map(allergy => (
+                  <button
+                    key={allergy}
+                    type="button"
+                    onClick={() => toggleAllergy(allergy)}
+                    className={`px-3 py-1 rounded-full text-sm border transition ${
+                      medicalData.allergies.includes(allergy)
+                        ? 'bg-red-600 text-white border-red-600'
+                        : 'bg-white text-gray-700 border-gray-300 hover:border-red-500'
+                    }`}
+                  >
+                    {allergy}
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={medicalData.customAllergy}
+                  onChange={(e) => setMedicalData({ ...medicalData, customAllergy: e.target.value })}
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Add other allergy"
+                />
+                <button
+                  type="button"
+                  onClick={addCustomAllergy}
+                  className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+                >
+                  Add
+                </button>
+              </div>
+              {medicalData.allergies.length > 0 && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Selected: {medicalData.allergies.join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+
+      default:
+        return null;
+    }
+  };
+
+  if (initialLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-green-50 py-8 px-4">
+      <div className="max-w-2xl mx-auto">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 bg-gradient-to-br from-blue-600 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <span className="material-icons text-white text-3xl">assignment</span>
+          </div>
+          <h1 className="text-3xl font-bold text-gray-800">Patient Intake Form</h1>
+          <p className="text-gray-600 mt-2">Complete your profile to proceed with your appointment</p>
+        </div>
+
+        {/* Progress Steps */}
+        <div className="flex items-center justify-between mb-8 px-4">
+          {STEPS.map((step, index) => (
+            <React.Fragment key={step.id}>
+              <div className="flex flex-col items-center">
+                <div
+                  className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                    currentStep > step.id
+                      ? 'bg-green-600 text-white'
+                      : currentStep === step.id
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-200 text-gray-500'
+                  }`}
+                >
+                  {currentStep > step.id ? (
+                    <span className="material-icons text-sm">check</span>
+                  ) : (
+                    step.id
+                  )}
+                </div>
+                <span className={`text-xs mt-1 ${currentStep >= step.id ? 'text-gray-800' : 'text-gray-400'}`}>
+                  {step.title}
+                </span>
+              </div>
+              {index < STEPS.length - 1 && (
+                <div
+                  className={`flex-1 h-1 mx-2 rounded ${
+                    currentStep > step.id ? 'bg-green-600' : 'bg-gray-200'
+                  }`}
+                />
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Form Card */}
+        <div className="bg-white rounded-2xl shadow-xl p-8">
+          <h2 className="text-xl font-bold text-gray-800 mb-2">
+            {STEPS[currentStep - 1].title}
+          </h2>
+          <p className="text-gray-600 mb-6">{STEPS[currentStep - 1].description}</p>
+
+          {/* Error Message */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+              <span className="material-icons text-sm align-middle mr-2">error</span>
+              {error}
+            </div>
+          )}
+
+          {/* Step Content */}
+          {renderStepContent()}
+
+          {/* Navigation Buttons */}
+          <div className="flex justify-between mt-8 pt-6 border-t border-gray-100">
+            <button
+              type="button"
+              onClick={handleBack}
+              disabled={currentStep === 1}
+              className={`px-6 py-3 rounded-lg font-medium transition ${
+                currentStep === 1
+                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <span className="material-icons text-sm align-middle mr-1">arrow_back</span>
+              Back
+            </button>
+
+            <div className="flex gap-3">
+              {currentStep === 4 && (
+                <button
+                  type="button"
+                  onClick={handleSkip}
+                  disabled={loading}
+                  className="px-6 py-3 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+                >
+                  Skip for now
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={handleNext}
+                disabled={loading}
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition disabled:opacity-50"
+              >
+                {loading ? (
+                  <span className="flex items-center">
+                    <svg className="animate-spin h-5 w-5 mr-2" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Processing...
+                  </span>
+                ) : currentStep === 4 ? (
+                  <>
+                    Complete
+                    <span className="material-icons text-sm align-middle ml-1">check_circle</span>
+                  </>
+                ) : (
+                  <>
+                    Continue
+                    <span className="material-icons text-sm align-middle ml-1">arrow_forward</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="text-center mt-8 text-sm text-gray-400">
+          Your information is secure and confidential
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default PatientIntakeForm;

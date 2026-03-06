@@ -23,11 +23,13 @@ export const createPatientProfile = async (authUserId, profileData) => {
       phone_number: profileData.phone,  // Changed from phone to phone_number
       date_of_birth: profileData.dateOfBirth,
       gender: profileData.gender,
-      // blood_group removed - collected at Step 5, not Step 1
+      // blood_group removed - collected in intake form
       height_cm: profileData.heightCm,
       weight_kg: profileData.weightKg,
+      is_indian_resident: profileData.isIndianResident,  // New field
       registration_step: 1,
-      registration_completed: false
+      registration_completed: false,
+      intake_form_completed: false  // New field - intake form not done yet
     })
     .select()
     .single();

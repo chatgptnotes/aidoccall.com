@@ -131,17 +131,9 @@ const PatientPortal = () => {
         return;
       }
 
-      if (!data.registration_completed) {
-        // Registration not completed
-        // Only redirect to registration if user is a patient/user role
-        if (userRole === 'patient' || userRole === 'user') {
-          navigate('/patient/register');
-          return;
-        }
-        console.log('Registration not completed for role:', userRole);
-        setLoading(false);
-        return;
-      }
+      // Note: We no longer redirect for incomplete registration
+      // Users can browse and book without completing intake form
+      // Intake form will be shown after payment
 
       setPatientData(data);
 
@@ -287,6 +279,20 @@ const PatientPortal = () => {
       });
 
       setCreatedAppointment(confirmedAppointment);
+
+      // Check if patient intake form is completed
+      // If not, redirect to intake form before showing confirmation
+      if (!patientData?.intake_form_completed) {
+        closeBookingModal();
+        navigate('/patient/intake', { 
+          state: { 
+            appointmentId: confirmedAppointment.id 
+          } 
+        });
+        return;
+      }
+
+      // Intake form already completed - show confirmation
       setBookingStep(4); // Go to confirmation step
       loadAppointments();
       loadPatientData();
