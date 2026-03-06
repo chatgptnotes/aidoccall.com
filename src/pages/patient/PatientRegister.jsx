@@ -132,8 +132,14 @@ const PatientRegister = () => {
         });
       }
 
-      // Redirect to dashboard - patient can now browse and book
-      navigate('/dashboard');
+      // Redirect based on India resident status
+      if (accountData.isIndianResident) {
+        // Indian residents go directly to dashboard
+        navigate('/dashboard');
+      } else {
+        // International patients must fill consent form first
+        navigate('/patient/international-consent');
+      }
     } catch (err) {
       console.error('Registration error:', err);
       setError(err.message || 'An error occurred. Please try again.');
