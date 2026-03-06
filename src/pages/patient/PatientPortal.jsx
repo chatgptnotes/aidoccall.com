@@ -31,6 +31,7 @@ import {
 import { supabase } from '../../lib/supabaseClient';
 import { sendAppointmentConfirmation } from '../../services/whatsappService';
 import PatientNotificationBell from '../../components/PatientNotificationBell';
+import { formatPrice, getCurrency } from '../../utils/currency';
 
 const PatientPortal = () => {
   const navigate = useNavigate();
@@ -828,9 +829,9 @@ const PatientPortal = () => {
                 className="px-4 py-2 border border-gray-200 rounded-lg bg-white text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 <option value="">Any Fee</option>
-                <option value="300">Under Rs. 300</option>
-                <option value="500">Under Rs. 500</option>
-                <option value="1000">Under Rs. 1000</option>
+                <option value="300">Under {formatPrice(300, patientData?.is_indian_resident)}</option>
+                <option value="500">Under {formatPrice(500, patientData?.is_indian_resident)}</option>
+                <option value="1000">Under {formatPrice(1000, patientData?.is_indian_resident)}</option>
               </select>
               <label className="flex items-center gap-2 px-4 py-2 border border-gray-200 rounded-lg bg-white cursor-pointer hover:bg-gray-50 transition">
                 <input
@@ -919,7 +920,7 @@ const PatientPortal = () => {
                     <div className="flex items-center justify-between pt-4 border-t border-gray-100">
                       <div>
                         <p className="text-xl font-semibold text-gray-900">
-                          Rs. {doctor.consultation_fee || doctor.online_fee || 0}
+                          {formatPrice(doctor.consultation_fee || doctor.online_fee || 0, patientData?.is_indian_resident)}
                         </p>
                         <p className="text-xs text-gray-400">per session</p>
                       </div>
@@ -1013,7 +1014,7 @@ const PatientPortal = () => {
                             )}
                           </div>
                           <div className="text-right">
-                            <p className="font-bold text-gray-900 text-lg">Rs. {apt.consultation_fee || apt.amount}</p>
+                            <p className="font-bold text-gray-900 text-lg">{formatPrice(apt.consultation_fee || apt.amount, patientData?.is_indian_resident)}</p>
                             {(apt.status === 'scheduled' || apt.status === 'pending') && (
                               <button onClick={() => handleCancelAppointment(apt.id)} className="text-red-600 text-sm font-medium hover:text-red-700 mt-1">Cancel</button>
                             )}
@@ -1435,7 +1436,7 @@ const PatientPortal = () => {
                   <p className="text-sm text-gray-500">{selectedDoctor.clinic_name || selectedDoctor.clinic_address || ''}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-lg font-bold text-gray-800">Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee) || 0}</p>
+                  <p className="text-lg font-bold text-gray-800">{formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee) || 0, patientData?.is_indian_resident)}</p>
                   <p className="text-xs text-gray-500">per session</p>
                 </div>
               </div>
@@ -1636,7 +1637,7 @@ const PatientPortal = () => {
                     <div className="border-t border-gray-200 mt-4 pt-4">
                       <div className="flex justify-between text-lg">
                         <span className="font-bold text-gray-800">Total Amount</span>
-                        <span className="font-bold text-blue-600">Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)}</span>
+                        <span className="font-bold text-blue-600">{formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0), patientData?.is_indian_resident)}</span>
                       </div>
                     </div>
                   </div>
@@ -1684,7 +1685,7 @@ const PatientPortal = () => {
                       ) : (
                         <>
                           <span className="material-icons text-sm">lock</span>
-                          Pay Rs. {bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)}
+                          Pay {formatPrice(bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0), patientData?.is_indian_resident)}
                         </>
                       )}
                     </button>
@@ -1787,7 +1788,7 @@ const PatientPortal = () => {
                         </div>
                         <div className="flex justify-between mt-2">
                           <span className="text-gray-600">Amount Paid</span>
-                          <span className="font-bold text-gray-800">Rs. {createdAppointment.amount || (bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0))}</span>
+                          <span className="font-bold text-gray-800">{formatPrice(createdAppointment.amount || (bookingData.visitType === 'online' ? (selectedDoctor.online_fee || selectedDoctor.consultation_fee || 0) : (selectedDoctor.consultation_fee || selectedDoctor.online_fee || 0)), patientData?.is_indian_resident)}</span>
                         </div>
                         {createdAppointment.payment_id && (
                           <div className="flex justify-between mt-2">
