@@ -59,13 +59,13 @@ export const updatePatientProfile = async (patientId, profileData) => {
   }
 
   const updateData = {
-    phone_number: profileData.phone,  // Changed from phone to phone_number
-    date_of_birth: profileData.dateOfBirth,
-    gender: profileData.gender,
-    blood_group: profileData.bloodGroup,
+    phone_number: profileData.phone || null,
+    date_of_birth: profileData.dateOfBirth || null,
+    gender: profileData.gender || null,
+    blood_group: profileData.bloodGroup || null,
     height_cm: profileData.heightCm,
     weight_kg: profileData.weightKg,
-    profile_image_url: profileData.profilePhotoUrl,
+    profile_image_url: profileData.profilePhotoUrl || null,
     updated_at: new Date().toISOString()
   };
 
@@ -858,7 +858,14 @@ export const deleteDocument = async (documentId, filePath) => {
 export const searchDoctors = async (filters = {}) => {
   let query = supabase
     .from('doc_doctors')
-    .select('*');
+    .select('*')
+    .not('specialization', 'is', null)
+    .neq('specialization', '');
+
+  // Search by name
+  if (filters.search) {
+    query = query.ilike('full_name', `%${filters.search}%`);
+  }
 
   if (filters.specialization) {
     query = query.ilike('specialization', `%${filters.specialization}%`);

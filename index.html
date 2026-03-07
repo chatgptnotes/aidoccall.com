@@ -3,11 +3,42 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    
+    <!-- SEO Meta Tags -->
+    <meta name="description" content="AidocCall - Your trusted healthcare platform. Connect with verified doctors, book appointments, and manage your health records securely." />
+    <meta name="keywords" content="healthcare, telemedicine, doctor consultation, video call, health records, appointments" />
+    <meta name="author" content="AidocCall" />
+    
+    <!-- Theme Color (AidoCall Blue) -->
+    <meta name="theme-color" content="#2b7ab9" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="AidocCall - Healthcare at Your Fingertips" />
+    <meta property="og:description" content="Connect with verified doctors, book appointments, and access your health records securely." />
+    <meta property="og:type" content="website" />
+    
+    <!-- Fonts - Preconnect for performance -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    
+    <!-- Google Fonts - Inter & Plus Jakarta Sans -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+    
+    <!-- Material Icons -->
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <title>AidocCall.com - Medical Consultation Platform</title>
+    
+    <title>AidocCall - Healthcare at Your Fingertips</title>
+    
+    <!-- Prevent FOUC -->
+    <style>
+      html {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      }
+    </style>
   </head>
-  <body>
+  <body class="antialiased">
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
   </body>
