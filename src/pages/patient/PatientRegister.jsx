@@ -10,6 +10,7 @@ const PatientRegister = () => {
 
   // Account Data
   const [accountData, setAccountData] = useState({
+    fullName: '',
     email: '',
     password: '',
     confirmPassword: '',
@@ -19,6 +20,10 @@ const PatientRegister = () => {
   const validateForm = () => {
     setError('');
 
+    if (!accountData.fullName || !accountData.fullName.trim()) {
+      setError('Full name is required');
+      return false;
+    }
     if (!accountData.email || !accountData.password) {
       setError('Email and password are required');
       return false;
@@ -115,10 +120,16 @@ const PatientRegister = () => {
       }
 
       if (existingProfile) {
-        // Update with India resident status
+        // Update with India resident status and name
+        const nameParts = accountData.fullName.trim().split(' ');
+        const firstName = nameParts[0];
+        const lastName = nameParts.slice(1).join(' ') || '';
+        
         await supabase
           .from('doc_patients')
           .update({
+            first_name: firstName,
+            last_name: lastName,
             is_indian_resident: accountData.isIndianResident,
             registration_step: 1
           })
@@ -127,7 +138,7 @@ const PatientRegister = () => {
         // Create patient profile with India resident status
         await createPatientProfile(userId, {
           email: accountData.email,
-          fullName: 'Patient',
+          fullName: accountData.fullName.trim(),
           isIndianResident: accountData.isIndianResident
         });
       }
@@ -172,6 +183,19 @@ const PatientRegister = () => {
             )}
 
             <div className="space-y-5">
+              {/* Full Name */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Full Name *</label>
+                <input
+                  type="text"
+                  value={accountData.fullName}
+                  onChange={(e) => setAccountData({ ...accountData, fullName: e.target.value })}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter your full name"
+                  required
+                />
+              </div>
+
               {/* Email */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>

@@ -31,6 +31,15 @@ const PatientNotificationBell = ({ patientId, patientEmail }) => {
         .order('updated_at', { ascending: false })
         .limit(50);
 
+      // Fetch in-app notifications from doc_notifications table
+      const { data: inAppNotifs } = await supabase
+        .from('doc_notifications')
+        .select('*')
+        .eq('patient_id', patientId)
+        .eq('type', 'in_app')
+        .order('created_at', { ascending: false })
+        .limit(20);
+
       if (!data) return;
 
       const snapshot = {};
@@ -75,6 +84,23 @@ const PatientNotificationBell = ({ patientId, patientEmail }) => {
       });
 
       appointmentsRef.current = snapshot;
+
+      // Add in-app notifications from doctor (follow-ups, messages, etc.)
+      if (inAppNotifs) {
+        inAppNotifs.forEach((notif) => {
+          if (!seenAptIds.has(`inapp_${notif.id}`)) {
+            newNotifs.push({
+              id: `inapp_${notif.id}`,
+              type: notif.title?.toLowerCase().includes('follow') ? 'followup' : 'message',
+              title: notif.title || 'New Notification',
+              message: notif.message || '',
+              createdAt: notif.sent_at || notif.created_at,
+              isRead: notif.is_read || false,
+            });
+            seenAptIds.add(`inapp_${notif.id}`);
+          }
+        });
+      }
 
       // Sort by createdAt descending and limit
       const sortedNotifs = newNotifs
@@ -246,6 +272,10 @@ const PatientNotificationBell = ({ patientId, patientEmail }) => {
         return { icon: 'event_repeat', bg: 'bg-blue-100', color: 'text-blue-600' };
       case 'confirmed':
         return { icon: 'event_available', bg: 'bg-green-100', color: 'text-green-600' };
+      case 'followup':
+        return { icon: 'calendar_month', bg: 'bg-purple-100', color: 'text-purple-600' };
+      case 'message':
+        return { icon: 'mail', bg: 'bg-blue-100', color: 'text-blue-600' };
       default:
         return { icon: 'notifications', bg: 'bg-gray-100', color: 'text-gray-600' };
     }
