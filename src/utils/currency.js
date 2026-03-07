@@ -114,10 +114,10 @@ export const getDoctorFee = (doctor, isIndianResident, visitType = 'physical') =
   const currency = getCurrency(isIndianResident);
   
   if (isIndianResident === true) {
-    // Indian patient - use INR fees
+    // Indian patient - use INR fees (prefer new _inr fields, fallback to legacy fields)
     const fee = visitType === 'online' 
-      ? (doctor.online_fee || doctor.consultation_fee || 0)
-      : (doctor.consultation_fee || doctor.online_fee || 0);
+      ? (doctor.online_fee_inr || doctor.online_fee || doctor.consultation_fee || 0)
+      : (doctor.consultation_fee_inr || doctor.consultation_fee || doctor.online_fee || 0);
     
     return {
       amount: fee,
@@ -128,8 +128,8 @@ export const getDoctorFee = (doctor, isIndianResident, visitType = 'physical') =
   } else {
     // International patient - use USD fees if available, else convert
     const intlFee = visitType === 'online'
-      ? (doctor.international_online_fee || doctor.international_consultation_fee)
-      : (doctor.international_consultation_fee || doctor.international_online_fee);
+      ? (doctor.online_fee_usd || doctor.consultation_fee_usd)
+      : (doctor.consultation_fee_usd || doctor.online_fee_usd);
     
     if (intlFee && intlFee > 0) {
       // Doctor has set specific USD fee
@@ -140,10 +140,10 @@ export const getDoctorFee = (doctor, isIndianResident, visitType = 'physical') =
         formatted: `$${intlFee.toFixed(2)}`
       };
     } else {
-      // Fallback: Convert INR fee to USD
+      // Fallback: Convert INR fee to USD (only if doctor hasn't set USD pricing)
       const inrFee = visitType === 'online'
-        ? (doctor.online_fee || doctor.consultation_fee || 0)
-        : (doctor.consultation_fee || doctor.online_fee || 0);
+        ? (doctor.online_fee_inr || doctor.online_fee || doctor.consultation_fee || 0)
+        : (doctor.consultation_fee_inr || doctor.consultation_fee || doctor.online_fee || 0);
       const convertedFee = convertFromINR(inrFee, false);
       
       return {
