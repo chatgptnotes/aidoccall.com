@@ -20,6 +20,7 @@ import PatientRegister from './pages/patient/PatientRegister';
 import PatientPortal from './pages/patient/PatientPortal';
 import PatientIntakeForm from './pages/patient/PatientIntakeForm';
 import InternationalConsentForm from './pages/patient/InternationalConsentForm';
+import PrescriptionViewer from './pages/patient/PrescriptionViewer';
 
 // Role-based Dashboard Component
 const RoleDashboard = () => {
@@ -181,6 +182,14 @@ const App = () => {
           element={
             <ProtectedRoute>
               <InternationalConsentForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patient/prescription"
+          element={
+            <ProtectedRoute>
+              <PrescriptionViewer />
             </ProtectedRoute>
           }
         />

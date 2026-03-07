@@ -1539,6 +1539,76 @@ const PatientPortal = () => {
                 )}
               </div>
             </div>
+
+            {/* Prescriptions from Doctors */}
+            <div className="bg-white rounded-2xl border border-slate-200/60 shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/20">
+                    <span className="material-icons text-white text-lg">description</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-800">Prescriptions from Doctors</h3>
+                    <p className="text-sm text-slate-500">{documents.filter(d => d.uploaded_by === 'doctor').length} prescription{documents.filter(d => d.uploaded_by === 'doctor').length !== 1 ? 's' : ''} available</p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-6">
+                {documents.filter(d => d.uploaded_by === 'doctor').length === 0 ? (
+                  <div className="text-center py-8">
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="material-icons text-slate-300 text-3xl">receipt_long</span>
+                    </div>
+                    <p className="text-slate-500">No prescriptions from doctors yet</p>
+                    <p className="text-sm text-slate-400 mt-1">Prescriptions will appear here after your doctor shares them</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {documents.filter(d => d.uploaded_by === 'doctor').map((doc) => (
+                      <div key={doc.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-teal-50/50 rounded-xl border border-emerald-100 hover:shadow-md transition-all duration-200">
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 bg-emerald-100 rounded-lg flex items-center justify-center">
+                            <span className="material-icons text-emerald-600">
+                              {doc.file_type === 'prescription' ? 'medical_services' : 'description'}
+                            </span>
+                          </div>
+                          <div>
+                            <p className="font-semibold text-slate-800">{doc.file_name}</p>
+                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-0.5">
+                              <span className="px-2 py-0.5 bg-emerald-100 text-emerald-700 rounded-md font-medium capitalize">{doc.file_type}</span>
+                              <span>{new Date(doc.created_at).toLocaleDateString()}</span>
+                            </div>
+                            {doc.description && <p className="text-xs text-slate-500 mt-1">{doc.description}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              // Use the prescription viewer page
+                              navigate(`/patient/prescription?file=${encodeURIComponent(doc.file_url)}`);
+                            }}
+                            className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all duration-200"
+                            title="View"
+                          >
+                            <span className="material-icons">visibility</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              // Open in viewer for print/save as PDF
+                              window.open(`/patient/prescription?file=${encodeURIComponent(doc.file_url)}`, '_blank');
+                            }}
+                            className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-all duration-200"
+                            title="Print / Save PDF"
+                          >
+                            <span className="material-icons">print</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -2405,15 +2475,10 @@ const PatientPortal = () => {
                       </div>
                       <div className="flex items-center gap-2">
                         <button
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.preventDefault();
-                            try {
-                              const url = await getDoctorPrescriptionUrl(doc.file_url);
-                              window.open(url, '_blank');
-                            } catch (err) {
-                              console.error('Error opening document:', err);
-                              alert('Error opening document. Please ask your doctor to re-upload.');
-                            }
+                            // Use the prescription viewer page
+                            navigate(`/patient/prescription?file=${encodeURIComponent(doc.file_url)}`);
                           }}
                           className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-all duration-200"
                           title="View"
@@ -2421,25 +2486,15 @@ const PatientPortal = () => {
                           <span className="material-icons">visibility</span>
                         </button>
                         <button
-                          onClick={async (e) => {
+                          onClick={(e) => {
                             e.preventDefault();
-                            try {
-                              const url = await getDoctorPrescriptionUrl(doc.file_url);
-                              const link = document.createElement('a');
-                              link.href = url;
-                              link.download = doc.file_name;
-                              document.body.appendChild(link);
-                              link.click();
-                              document.body.removeChild(link);
-                            } catch (err) {
-                              console.error('Error downloading document:', err);
-                              alert('Error downloading document. Please ask your doctor to re-upload.');
-                            }
+                            // Open in viewer for print/save as PDF
+                            window.open(`/patient/prescription?file=${encodeURIComponent(doc.file_url)}`, '_blank');
                           }}
                           className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-all duration-200"
-                          title="Download"
+                          title="Print / Save PDF"
                         >
-                          <span className="material-icons">download</span>
+                          <span className="material-icons">print</span>
                         </button>
                       </div>
                     </div>
