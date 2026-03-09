@@ -501,6 +501,11 @@ a .material-icons {
   }
 }
 
+/* === Safe Area for Bottom Nav === */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* === Print Styles === */
 @media print {
   .no-print {

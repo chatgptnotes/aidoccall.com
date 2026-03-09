@@ -567,8 +567,8 @@ const PatientPortal = () => {
 
   // Get initials from name
   const getInitials = (name) => {
-    if (!name) return 'DR';
-    const parts = name.replace('Dr. ', '').split(' ');
+    if (!name || !name.trim()) return 'P';
+    const parts = name.trim().replace('Dr. ', '').split(' ').filter(Boolean);
     if (parts.length >= 2) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
@@ -585,25 +585,25 @@ const PatientPortal = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-50">
-      {/* Single Combined Navbar */}
+      {/* Top Navbar */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200/60 sticky top-0 z-30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center h-16">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-14 sm:h-16">
             {/* Logo as Home Button */}
             <button
               onClick={() => setActiveTab('home')}
-              className="flex items-center flex-shrink-0 mr-6"
+              className="flex items-center flex-shrink-0"
               title="Home"
             >
               <img
                 src="/aidoccall-logo.png"
                 alt="AidocCall"
-                className="h-[58px] sm:h-16 w-auto object-contain"
+                className="h-10 sm:h-16 w-auto object-contain"
               />
             </button>
 
-            {/* Tab Navigation */}
-            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+            {/* Desktop Tab Navigation - hidden on mobile */}
+            <div className="hidden md:flex items-center gap-3 mx-6">
               {[
                 { id: 'doctors', label: 'Find Doctors', icon: 'person_search' },
                 { id: 'appointments', label: 'Appointments', icon: 'calendar_today' },
@@ -620,28 +620,28 @@ const PatientPortal = () => {
                   }`}
                 >
                   <span className="material-icons text-lg">{tab.icon}</span>
-                  <span className="hidden sm:inline">{tab.label}</span>
+                  <span>{tab.label}</span>
                 </button>
               ))}
             </div>
 
             {/* User Actions */}
-            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 ml-auto">
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <PatientNotificationBell patientId={patientData?.id} patientEmail={patientData?.email} />
-              <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
-                <div className="hidden md:block text-right">
+              <div className="flex items-center gap-2 sm:gap-3 pl-2 sm:pl-3 border-l border-slate-200">
+                <div className="hidden lg:block text-right">
                   <p className="text-sm font-semibold text-slate-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim() || 'Patient'}</p>
                   <p className="text-xs text-slate-400">ID: PT-{patientData?.id?.slice(-6).toUpperCase()}</p>
                 </div>
-                <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${getAvatarColor(`${patientData?.first_name || ''} ${patientData?.last_name || ''}`)} flex items-center justify-center shadow-md`}>
-                  <span className="text-white font-bold text-sm">{getInitials(`${patientData?.first_name || ''} ${patientData?.last_name || ''}`)}</span>
+                <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br ${getAvatarColor(`${patientData?.first_name || ''} ${patientData?.last_name || ''}`)} flex items-center justify-center shadow-md`}>
+                  <span className="text-white font-bold text-xs sm:text-sm">{getInitials(`${patientData?.first_name || ''} ${patientData?.last_name || ''}`)}</span>
                 </div>
                 <button
                   onClick={handleLogout}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all duration-200"
+                  className="p-1.5 sm:p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-all duration-200"
                   title="Sign Out"
                 >
-                  <span className="material-icons text-xl">logout</span>
+                  <span className="material-icons text-lg sm:text-xl">logout</span>
                 </button>
               </div>
             </div>
@@ -649,8 +649,37 @@ const PatientPortal = () => {
         </div>
       </header>
 
+      {/* Mobile Bottom Navigation - visible only on mobile */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-slate-200/60 z-30 safe-area-bottom">
+        <div className="flex items-center justify-around h-16 px-2">
+          {[
+            { id: 'home', label: 'Home', icon: 'home' },
+            { id: 'doctors', label: 'Doctors', icon: 'person_search' },
+            { id: 'appointments', label: 'Bookings', icon: 'calendar_today' },
+            { id: 'records', label: 'Records', icon: 'folder_shared' },
+            { id: 'profile', label: 'Profile', icon: 'person' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-1.5 rounded-xl transition-all duration-200 ${
+                activeTab === tab.id
+                  ? 'text-[#2b7ab9]'
+                  : 'text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <span className={`material-icons text-[22px] ${activeTab === tab.id ? 'scale-110' : ''} transition-transform`}>{tab.icon}</span>
+              <span className={`text-[10px] font-medium leading-tight ${activeTab === tab.id ? 'font-semibold' : ''}`}>{tab.label}</span>
+              {activeTab === tab.id && (
+                <span className="w-1 h-1 rounded-full bg-[#2b7ab9] mt-0.5"></span>
+              )}
+            </button>
+          ))}
+        </div>
+      </nav>
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 pb-24 md:pb-8">
         {/* Home Tab */}
         {activeTab === 'home' && (
           <div className="space-y-8">
