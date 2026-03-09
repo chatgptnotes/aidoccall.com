@@ -585,25 +585,49 @@ const PatientPortal = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-50">
-      {/* Modern Header */}
+      {/* Single Combined Navbar */}
       <header className="bg-white/80 backdrop-blur-lg border-b border-slate-200/60 sticky top-0 z-30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            {/* Logo & Brand */}
-            <div className="flex items-center">
-              <img 
-                src="/aidoccall-logo.png" 
-                alt="AidocCall" 
-                className="h-9 sm:h-10 w-auto object-contain"
+          <div className="flex items-center h-16">
+            {/* Logo as Home Button */}
+            <button
+              onClick={() => setActiveTab('home')}
+              className="flex items-center flex-shrink-0 mr-6"
+              title="Home"
+            >
+              <img
+                src="/aidoccall-logo.png"
+                alt="AidocCall"
+                className="h-[58px] sm:h-16 w-auto object-contain"
               />
+            </button>
+
+            {/* Tab Navigation */}
+            <div className="flex items-center gap-3 overflow-x-auto scrollbar-hide">
+              {[
+                { id: 'doctors', label: 'Find Doctors', icon: 'person_search' },
+                { id: 'appointments', label: 'Appointments', icon: 'calendar_today' },
+                { id: 'records', label: 'Records', icon: 'folder_shared' },
+                { id: 'profile', label: 'Profile', icon: 'person' }
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-300 ${
+                    activeTab === tab.id
+                      ? 'bg-gradient-to-r from-[#2b7ab9] to-[#236394] text-white shadow-lg shadow-[#2b7ab9]/25'
+                      : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
+                  }`}
+                >
+                  <span className="material-icons text-lg">{tab.icon}</span>
+                  <span className="hidden sm:inline">{tab.label}</span>
+                </button>
+              ))}
             </div>
 
             {/* User Actions */}
-            <div className="flex items-center gap-2 sm:gap-4">
-              {/* Notification Bell */}
+            <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0 ml-auto">
               <PatientNotificationBell patientId={patientData?.id} patientEmail={patientData?.email} />
-              
-              {/* User Profile */}
               <div className="flex items-center gap-3 pl-3 border-l border-slate-200">
                 <div className="hidden md:block text-right">
                   <p className="text-sm font-semibold text-slate-800">{`${patientData?.first_name || ''} ${patientData?.last_name || ''}`.trim() || 'Patient'}</p>
@@ -624,34 +648,6 @@ const PatientPortal = () => {
           </div>
         </div>
       </header>
-
-      {/* Modern Pill-Style Tab Navigation */}
-      <nav className="bg-white/60 backdrop-blur-md border-b border-slate-200/60 sticky top-16 z-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-1 py-3 overflow-x-auto scrollbar-hide">
-            {[
-              { id: 'home', label: 'Home', icon: 'home' },
-              { id: 'doctors', label: 'Find Doctors', icon: 'person_search' },
-              { id: 'appointments', label: 'Appointments', icon: 'calendar_today' },
-              { id: 'records', label: 'Records', icon: 'folder_shared' },
-              { id: 'profile', label: 'Profile', icon: 'person' }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium whitespace-nowrap transition-all duration-300 ${
-                  activeTab === tab.id
-                    ? 'bg-gradient-to-r from-[#2b7ab9] to-[#236394] text-white shadow-lg shadow-[#2b7ab9]/25'
-                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-800'
-                }`}
-              >
-                <span className="material-icons text-lg">{tab.icon}</span>
-                <span className="hidden sm:inline">{tab.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8">
